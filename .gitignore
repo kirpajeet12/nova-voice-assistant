@@ -1,0 +1,20 @@
+# API keys — never upload these
+.env
+
+# User config — personal to each user
+assistant_config.json
+contacts.json
+conversation_history.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Audio temp files
+*.mp3
+*.wav
+slide_audio/
+
+# Mac junk
+.DS_Store

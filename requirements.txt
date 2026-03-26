@@ -1,0 +1,8 @@
+anthropic
+elevenlabs
+openai-whisper
+pyaudio
+numpy
+requests
+pygame
+python-dotenv
