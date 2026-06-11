@@ -25,7 +25,8 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        path = f.name
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -90,26 +91,45 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
         raw = response.content[0].text.strip()
 
     import json, re
-    # Extract JSON even if wrapped in markdown
-    match = re.search(r'\{.*\}', raw, re.DOTALL)
+    # Extract JSON even if wrapped in markdown; non-greedy to get first object
+    match = re.search(r'\{.*?\}', raw, re.DOTALL)
     if not match:
         print(f"  [vision] no action found")
         return "I couldn't find that on screen."
 
-    data = json.loads(match.group())
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError:
+        print(f"  [vision] malformed JSON response")
+        return "I couldn't parse the screen analysis."
+
+    _VALID_ACTIONS = {"click", "double_click", "type", "scroll", "none"}
     action      = data.get("action", "none")
     description = data.get("description", "")
     result      = data.get("result", "")
 
+    if action not in _VALID_ACTIONS:
+        print(f"  [vision] unexpected action value: {action!r}")
+        return "I couldn't determine a safe action."
+
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
-    if action == "click":
-        pyautogui.click(data["x"], data["y"])
-    elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+    if action in ("click", "double_click"):
+        screen_w, screen_h = pyautogui.size()
+        try:
+            x = max(0, min(int(data["x"]), screen_w - 1))
+            y = max(0, min(int(data["y"]), screen_h - 1))
+        except (KeyError, TypeError, ValueError):
+            print(f"  [vision] invalid coordinates in response")
+            return "I couldn't get valid screen coordinates."
+        if action == "click":
+            pyautogui.click(x, y)
+        else:
+            pyautogui.doubleClick(x, y)
     elif action == "type":
-        pyautogui.typewrite(data.get("text", ""), interval=0.05)
+        text = str(data.get("text", ""))[:1000]  # cap length
+        pyautogui.typewrite(text, interval=0.05)
     elif action == "scroll":
         direction = 1 if data.get("scroll_direction") == "up" else -1
         pyautogui.scroll(direction * 3)

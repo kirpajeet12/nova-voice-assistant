@@ -23,7 +23,10 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text.replace('\\', '\\\\')
+               .replace('"', '\\"')
+               .replace('\r', '')
+               .replace('\n', ' '))
 
 
 def run_applescript(script: str) -> dict:
@@ -95,8 +98,10 @@ def _spotify_token() -> str:
             headers={"Authorization": f"Basic {creds}"},
             data={"grant_type": "client_credentials"}, timeout=8
         )
-        return res.json().get("access_token", "")
-    except:
+        if res.status_code == 200:
+            return res.json().get("access_token", "")
+        return ""
+    except Exception:
         return ""
 
 def search_spotify(query: str, limit: int = 3) -> list:
@@ -472,7 +477,7 @@ def parse_and_execute(text: str) -> str:
         title    = parts[0].strip() if len(parts) > 0 else "Event"
         when     = parts[1].strip() if len(parts) > 1 else "today"
         time_str = parts[2].strip() if len(parts) > 2 else "9am"
-        duration = float(parts[3].strip()) if len(parts) > 3 else 1.0
+        duration = max(0.25, min(24.0, float(parts[3].strip()))) if len(parts) > 3 else 1.0
         add_calendar_event(title, when, time_str, duration)
         return ""
 
@@ -486,8 +491,9 @@ def parse_and_execute(text: str) -> str:
 
     def _timer(m):
         try:
-            set_timer(int(m.group(1).strip()))
-        except:
+            minutes = max(1, min(1440, int(m.group(1).strip())))
+            set_timer(minutes)
+        except Exception:
             pass
         return ""
 

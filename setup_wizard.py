@@ -40,6 +40,7 @@ def _write_env(keys: dict):
     for k, v in keys.items():
         lines.append(f"{k}={v}")
     ENV_FILE.write_text("\n".join(lines) + "\n")
+    ENV_FILE.chmod(0o600)  # owner read/write only — protects API keys
 
 
 def _load_env() -> dict:
@@ -61,6 +62,7 @@ def _load_config() -> dict:
 
 def _save_config(cfg: dict):
     CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
+    CONFIG_FILE.chmod(0o600)
 
 
 def run_setup(force: bool = False) -> dict:
@@ -81,8 +83,8 @@ def run_setup(force: bool = False) -> dict:
     # ── Assistant Identity ─────────────────
     print("── Step 1: Assistant Identity ──────────────\n")
 
-    name = _ask("What do you want to call your assistant?", cfg.get("name", "Nova"))
-    wake_word = _ask(f"Wake word (how you'll activate it)", cfg.get("wake_word", f"hey {name.lower()}"))
+    name = _ask("What do you want to call your assistant?", cfg.get("name", "Nova"))[:64]
+    wake_word = _ask(f"Wake word (how you'll activate it)", cfg.get("wake_word", f"hey {name.lower()}"))[:64]
 
     print(f"\nPersonality — describe how {name} should behave.")
     print("Examples:")
@@ -90,7 +92,7 @@ def run_setup(force: bool = False) -> dict:
     print('  "Casual and funny, like a friend"')
     print('  "Formal, call me Sir"')
     print()
-    personality = _ask("Personality", cfg.get("personality", "Casual, warm and helpful"))
+    personality = _ask("Personality", cfg.get("personality", "Casual, warm and helpful"))[:256]
 
     print(f"\nCustom instructions for {name} (optional).")
     print("Examples:")
@@ -98,7 +100,7 @@ def run_setup(force: bool = False) -> dict:
     print('  "Call me boss"')
     print('  "Keep all replies under 1 sentence"')
     print()
-    instructions = _ask("Custom instructions (or press Enter to skip)", cfg.get("instructions", ""))
+    instructions = _ask("Custom instructions (or press Enter to skip)", cfg.get("instructions", ""))[:512]
 
     # ── API Keys ───────────────────────────
     print("\n── Step 2: API Keys ─────────────────────────\n")

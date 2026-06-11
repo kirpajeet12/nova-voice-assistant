@@ -12,7 +12,12 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    # Strip control characters that can break out of AppleScript string literals
+    return (text.replace('\\', '\\\\')
+               .replace('"', '\\"')
+               .replace("'", "\\'")
+               .replace('\r', '')
+               .replace('\n', ' '))
 
 
 def _run(script: str) -> dict:
@@ -55,6 +60,7 @@ def _save_contact(name: str, phone: str):
     contacts[name.lower()] = phone
     with open(CONTACTS_FILE, "w") as f:
         json.dump(contacts, f, indent=2)
+    os.chmod(CONTACTS_FILE, 0o600)
     print(f"  [contacts] saved {name} → {phone}")
 
 def _lookup_mac_contacts(name: str) -> str:
@@ -117,8 +123,10 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    from urllib.parse import quote as _quote
+    encoded_msg = _quote(message, safe='')
+    encoded_phone = _quote(phone, safe='+')
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
@@ -307,7 +315,7 @@ def _parse_time(time_str: str) -> tuple:
             return hour, 0
         else:
             return int(time_str) % 24, 0
-    except:
+    except Exception:
         return 9, 0  # default 9am
 
 
