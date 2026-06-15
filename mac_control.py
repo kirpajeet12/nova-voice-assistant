@@ -59,7 +59,7 @@ def quit_app(name: str):
 
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    if not url.startswith(("https://", "http://")):
         url = "https://" + url
     return run_applescript(f'open location "{_s(url)}"')
 
@@ -178,7 +178,7 @@ end tell
         script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
         run_applescript(script)
         return
@@ -504,7 +504,7 @@ def parse_and_execute(text: str) -> str:
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
