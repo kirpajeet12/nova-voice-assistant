@@ -205,6 +205,10 @@ Calendar & Reminders:
 [REMINDER: text|when|time]        — set a reminder
 [TIMER: minutes]                  — start a countdown timer
 
+System (requires voice confirmation before executing):
+[RUN: applescript code]           — run arbitrary AppleScript (use sparingly)
+[TYPE: text to type]              — type text into focused app (use sparingly)
+
 Notifications:
 [NOTIFY: Title|message]           — show Mac notification
 

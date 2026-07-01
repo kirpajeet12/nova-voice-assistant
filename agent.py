@@ -49,11 +49,18 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+def _sanitize_external(text: str) -> str:
+    """Strip characters that could be interpreted as LLM action tags from external data."""
+    import re as _re
+    # Remove any bracket sequences that look like action tags to prevent prompt injection
+    return _re.sub(r'\[([A-Z_]+:?[^\]]*)\]', lambda m: m.group(0).replace('[', '(').replace(']', ')'), text)
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _sanitize_external(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
@@ -64,8 +71,11 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                name = _sanitize_external(t['name'])
+                artist = _sanitize_external(t['artist'])
+                uri = t['uri']  # Spotify URIs are structured (spotify:track:<id>) — safe
+                augmented += f"\n\n[Spotify search result: '{name}' by {artist} — uri: {uri}]"
+                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
