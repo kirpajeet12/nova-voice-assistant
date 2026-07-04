@@ -100,7 +100,11 @@ def handle(command: str, source: str = "voice"):
             contact_name = raw_reply["contact"]
             pending_msg  = raw_reply["message"]
             from communications import _save_contact, send_whatsapp
-            phone = command.strip().replace(" ", "")
+            import re as _re
+            phone = _re.sub(r'[^0-9+]', '', command.strip())
+            if not phone:
+                speak("That doesn't look like a valid phone number. Try again.")
+                return
             _save_contact(contact_name, phone)
             _pending_action = None
             result = send_whatsapp(contact_name, pending_msg)

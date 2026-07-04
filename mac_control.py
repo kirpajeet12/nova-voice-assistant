@@ -23,7 +23,11 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\n', ' ')
+            .replace('\r', ''))
 
 
 def run_applescript(script: str) -> dict:
@@ -397,10 +401,6 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
-    def _run(m):
-        run_applescript(m.group(1).strip())
-        return ""
-
     def _type(m):
         type_text(m.group(1).strip())
         return ""
@@ -441,6 +441,8 @@ def parse_and_execute(text: str) -> str:
         from communications import read_whatsapp_messages
         contact = m.group(1).strip()
         result = read_whatsapp_messages(contact)
+        # Neutralize any action tags that message content might contain
+        result = result.replace('[', '❨').replace(']', '❩')
         print(f"  [whatsapp read] {result}")
         return result
 
@@ -497,14 +499,16 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
+    # [RUN: ...] removed — arbitrary AppleScript execution is not permitted
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        if not uri.startswith("spotify:"):
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
