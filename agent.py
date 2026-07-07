@@ -6,6 +6,7 @@ import requests
 import pygame
 import tempfile
 import os
+import stat
 import json
 from datetime import datetime
 from config import ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID
@@ -36,6 +37,7 @@ def _save_history():
     data = {"updated": datetime.now().isoformat(), "messages": history}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
+    os.chmod(HISTORY_FILE, stat.S_IRUSR | stat.S_IWUSR)  # 0o600 — owner only
 
 
 def load_history():

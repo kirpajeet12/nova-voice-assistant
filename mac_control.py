@@ -22,8 +22,18 @@ def get_weather(location: str = "") -> str:
 
 
 def _s(text: str) -> str:
-    """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    """Sanitize a string for safe embedding inside an AppleScript double-quoted string literal.
+
+    AppleScript has NO backslash escape sequences inside strings, so replacing " with \"
+    does NOT escape it — the backslash is literal and the double-quote still terminates
+    the string, enabling code injection. Instead we strip the characters that cannot be
+    safely embedded: double-quotes, backslashes, and bare CR/LF.
+    """
+    return (text
+            .replace('\\', '')
+            .replace('"', '')
+            .replace('\r', '')
+            .replace('\n', ' '))
 
 
 def run_applescript(script: str) -> dict:
