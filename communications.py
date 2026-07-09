@@ -9,6 +9,7 @@ import re
 import os
 import json
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 
 def _s(text: str) -> str:
@@ -50,7 +51,15 @@ def _load_contacts() -> dict:
             return json.load(f)
     return {}
 
+def _validate_phone(phone: str) -> bool:
+    """Validate phone looks like an E.164 number (+ optional, 7-15 digits)."""
+    digits = re.sub(r'[\s\-\(\)\+]', '', phone)
+    return digits.isdigit() and 7 <= len(digits) <= 15
+
 def _save_contact(name: str, phone: str):
+    if not _validate_phone(phone):
+        print(f"  [contacts] rejected invalid phone for {name}: {phone!r}")
+        return
     contacts = _load_contacts()
     contacts[name.lower()] = phone
     with open(CONTACTS_FILE, "w") as f:
@@ -117,8 +126,9 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    encoded_msg = quote(message, safe='')
+    encoded_phone = quote(phone, safe='+')
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
