@@ -34,7 +34,8 @@ HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.jso
 
 def _save_history():
     data = {"updated": datetime.now().isoformat(), "messages": history}
-    with open(HISTORY_FILE, "w") as f:
+    fd = os.open(HISTORY_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         json.dump(data, f, indent=2)
 
 

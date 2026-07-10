@@ -23,7 +23,10 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text.replace('\\', '\\\\')
+               .replace('"', '\\"')
+               .replace('\n', ' ')
+               .replace('\r', ' '))
 
 
 def run_applescript(script: str) -> dict:
@@ -57,10 +60,16 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
+    url = url.strip()
     if not url.startswith("http"):
         url = "https://" + url
+    if not any(url.startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked non-http URL scheme: {url}")
+        return {"ok": False, "error": "URL scheme not allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -172,7 +181,7 @@ end tell
         return
 
     # Try Spotify API first (if keys are configured)
-    uri = _get_spotify_uri(song)
+    uri = _s(_get_spotify_uri(song))
     if uri:
         # Use open location to navigate directly to the track — more reliable than play track AppleScript
         script = f'''
@@ -500,7 +509,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
