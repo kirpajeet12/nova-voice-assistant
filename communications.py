@@ -12,7 +12,10 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    return (text.replace('\\', '\\\\')
+               .replace('"', '\\"')
+               .replace('\n', ' ')
+               .replace('\r', ''))
 
 
 def _run(script: str) -> dict:
@@ -50,7 +53,15 @@ def _load_contacts() -> dict:
             return json.load(f)
     return {}
 
+def _validate_phone(phone: str) -> bool:
+    """Accept only strings that look like international phone numbers."""
+    import re as _re
+    return bool(_re.match(r'^\+?[0-9]{7,15}$', phone.strip()))
+
 def _save_contact(name: str, phone: str):
+    if not _validate_phone(phone):
+        print(f"  [contacts] rejected invalid phone '{phone}' for {name}")
+        return
     contacts = _load_contacts()
     contacts[name.lower()] = phone
     with open(CONTACTS_FILE, "w") as f:
@@ -117,7 +128,8 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe='')
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
 
     script = f'''

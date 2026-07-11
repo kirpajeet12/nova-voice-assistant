@@ -65,7 +65,7 @@ def _needs_confirmation(text: str) -> bool:
     """Check if agent reply contains a sensitive tag that needs confirmation."""
     if "[READ_WHATSAPP:" in text:
         return False   # reading never needs confirmation
-    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:"]
+    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:", "[RUN:"]
     return any(tag in text for tag in sensitive)
 
 def _preview(raw_reply: str) -> str:
@@ -99,8 +99,14 @@ def handle(command: str, source: str = "voice"):
         if isinstance(raw_reply, dict) and raw_reply.get("type") == "need_phone":
             contact_name = raw_reply["contact"]
             pending_msg  = raw_reply["message"]
-            from communications import _save_contact, send_whatsapp
+            from communications import _save_contact, send_whatsapp, _validate_phone
             phone = command.strip().replace(" ", "")
+            if not _validate_phone(phone):
+                _listening = False
+                speak("That doesn't look like a valid phone number. Please say it again.")
+                time.sleep(1.5)
+                _listening = True
+                return
             _save_contact(contact_name, phone)
             _pending_action = None
             result = send_whatsapp(contact_name, pending_msg)
