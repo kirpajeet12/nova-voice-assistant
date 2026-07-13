@@ -38,7 +38,9 @@ def _ask_secret(prompt: str, existing: str = "") -> str:
 def _write_env(keys: dict):
     lines = []
     for k, v in keys.items():
-        lines.append(f"{k}={v}")
+        # Quote values that contain spaces, newlines, or special shell characters
+        safe_v = v.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '').replace('\r', '')
+        lines.append(f'{k}="{safe_v}"')
     ENV_FILE.write_text("\n".join(lines) + "\n")
 
 
@@ -177,7 +179,7 @@ CRITICAL: Every action MUST include the tag. Without the tag, nothing happens.
 
 Apps & Web:
 [OPEN: AppName]                   — open any app
-[URL: https://...]                — open a website
+[URL: https://...]                — open a website (http/https only)
 
 Notes:
 [NOTE: text content]              — create and save a note in Notes app

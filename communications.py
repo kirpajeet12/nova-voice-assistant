@@ -12,7 +12,13 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    return (
+        text.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace("'", "\\'")
+            .replace('\n', '\\n')
+            .replace('\r', '\\r')
+    )
 
 
 def _run(script: str) -> dict:
@@ -108,6 +114,20 @@ def _find_contact(name: str) -> str:
 
     return ""
 
+import re as _re_comm
+import urllib.parse as _urlparse
+
+_PHONE_RE = _re_comm.compile(r'^[+\d\s\-\(\)]{7,20}$')
+
+
+def _safe_phone(phone: str) -> str:
+    """Strip phone to only safe characters; return empty string if invalid."""
+    cleaned = _re_comm.sub(r'[\s\-\(\)]', '', phone)
+    if _PHONE_RE.match(phone) and _re_comm.match(r'^[+\d]+$', cleaned):
+        return cleaned
+    return ""
+
+
 def send_whatsapp(contact: str, message: str):
     print(f"  [whatsapp] → {contact}: {message[:40]}...")
     phone = _find_contact(contact)
@@ -116,8 +136,13 @@ def send_whatsapp(contact: str, message: str):
         print(f"  [whatsapp] contact '{contact}' not found in contacts.json")
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
+    phone = _safe_phone(phone)
+    if not phone:
+        print(f"  [whatsapp] invalid phone number for '{contact}'")
+        return "Couldn't send — invalid phone number stored for that contact."
+
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    encoded_msg = _urlparse.quote(message, safe='')
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
 
     script = f'''
