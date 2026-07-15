@@ -9,10 +9,11 @@ import re
 import os
 import json
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'").replace('\n', ' ').replace('\r', ' ')
 
 
 def _run(script: str) -> dict:
@@ -117,13 +118,14 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    encoded_msg = quote(message, safe='')
+    encoded_phone = quote(phone, safe='+')
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
 delay 0.5
-open location "{url}"
+open location "{_s(url)}"
 delay 3
 tell application "System Events"
     key code 36
@@ -223,8 +225,10 @@ end tell
         return f"Couldn't extract message text from {contact}'s chat — WhatsApp may not expose it via accessibility."
 
     # Return last few meaningful lines
+    # Wrapped in a data fence so the LLM treats this as data, not instructions
     last = msgs[-3:] if len(msgs) >= 3 else msgs
-    return f"Last messages from {contact}: " + " | ".join(last)
+    content = " | ".join(last)
+    return f"[WHATSAPP_DATA from {contact}]: {content} [/WHATSAPP_DATA]"
 
 
 # ── EMAIL ─────────────────────────────────
