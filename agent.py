@@ -49,12 +49,19 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+def _sanitize_external(text: str) -> str:
+    """Strip characters that could be used for prompt injection from external data."""
+    # Replace bracket sequences that could be mistaken for action tags
+    return text.replace('[', '(').replace(']', ')')
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        # Sanitize external data before injecting into LLM prompt
+        augmented = f"{user_input}\n\n[Live weather data: {_sanitize_external(weather)}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
@@ -64,8 +71,12 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Validate the Spotify URI format before injecting it as an executable tag
+                if _re.match(r'^spotify:(track|album|artist|playlist):[A-Za-z0-9]+$', t['uri']):
+                    safe_name   = _sanitize_external(t['name'])
+                    safe_artist = _sanitize_external(t['artist'])
+                    augmented += f"\n\n[Spotify search result: '{safe_name}' by {safe_artist} — uri: {t['uri']}]"
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 

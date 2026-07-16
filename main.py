@@ -93,14 +93,28 @@ def handle(command: str, source: str = "voice"):
 
     # ── Handle pending confirmation ────────
     if _pending_action:
-        raw_reply, preview = _pending_action
+        # _pending_action is either a (raw_reply, preview) tuple or a "need_phone" dict.
+        # Check for the dict case first to avoid a ValueError from tuple unpacking.
+        if isinstance(_pending_action, dict) and _pending_action.get("type") == "need_phone":
+            raw_reply = _pending_action
+
+        if isinstance(_pending_action, tuple):
+            raw_reply, preview = _pending_action
+        else:
+            raw_reply = _pending_action
+            preview = ""
 
         # Handle phone number collection for unknown contacts
         if isinstance(raw_reply, dict) and raw_reply.get("type") == "need_phone":
             contact_name = raw_reply["contact"]
             pending_msg  = raw_reply["message"]
             from communications import _save_contact, send_whatsapp
+            import re as _re2
             phone = command.strip().replace(" ", "")
+            # Basic phone number validation: digits, +, hyphens only
+            if not _re2.match(r'^\+?[\d\-]{7,15}$', phone):
+                speak("That doesn't look like a valid phone number. Please try again.")
+                return
             _save_contact(contact_name, phone)
             _pending_action = None
             result = send_whatsapp(contact_name, pending_msg)

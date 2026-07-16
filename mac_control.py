@@ -23,7 +23,8 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    # Strip newlines to prevent breaking out of the AppleScript string context.
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ')
 
 
 def run_applescript(script: str) -> dict:
@@ -61,6 +62,10 @@ def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Only allow http/https — block file://, data:, javascript:, and other schemes
+    if not re.match(r'^https?://', url):
+        print(f"  [mac] blocked non-http URL scheme: {url!r}")
+        return {"ok": False, "error": "Only http/https URLs are allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,7 +403,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] tag is disabled — arbitrary AppleScript execution from LLM output
+        # is a remote code execution risk (prompt injection via external data).
+        print("  [mac] [RUN:] tag is disabled for security reasons")
         return ""
 
     def _type(m):
@@ -501,10 +508,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Validate the URI is a legitimate Spotify URI before embedding in AppleScript
+        if not re.match(r'^spotify:(track|album|artist|playlist|collection):[A-Za-z0-9]+$', uri):
+            print(f"  [mac] rejected invalid/unsafe Spotify URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
