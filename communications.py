@@ -9,6 +9,7 @@ import re
 import os
 import json
 from datetime import datetime, timedelta
+from urllib.parse import quote as _url_quote
 
 
 def _s(text: str) -> str:
@@ -81,11 +82,15 @@ end tell
     result = _run(script)
     phone = result.get("output", "").strip()
     if phone:
-        # Normalize: remove spaces, dashes, brackets
+        # Normalize: keep only digits, +, and strip leading zeros before country code
         import re as _re
         phone = _re.sub(r'[\s\-\(\)]', '', phone)
         if not phone.startswith('+'):
             phone = '+91' + phone.lstrip('0')  # default country code — change if needed
+        # Validate: only digits and leading +
+        if not _re.fullmatch(r'\+?[0-9]{6,15}', phone):
+            print(f"  [contacts] rejected malformed phone for {name}: {phone!r}")
+            return ""
         print(f"  [contacts] found {name} → {phone}")
     return phone
 
@@ -117,8 +122,9 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    encoded_msg = _url_quote(message, safe="")
+    encoded_phone = _url_quote(phone, safe="+")
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
