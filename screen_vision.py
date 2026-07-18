@@ -105,9 +105,13 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     print(f"  [vision] action: {action} → {result}")
 
     if action == "click":
-        pyautogui.click(data["x"], data["y"])
+        x, y = data.get("x"), data.get("y")
+        if x is not None and y is not None:
+            pyautogui.click(x, y)
     elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+        x, y = data.get("x"), data.get("y")
+        if x is not None and y is not None:
+            pyautogui.doubleClick(x, y)
     elif action == "type":
         pyautogui.typewrite(data.get("text", ""), interval=0.05)
     elif action == "scroll":

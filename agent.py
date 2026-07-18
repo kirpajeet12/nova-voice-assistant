@@ -28,6 +28,7 @@ if not USE_OLLAMA:
 
 # Conversation memory (persists during session)
 history = []
+MAX_HISTORY = 40  # keep last 40 messages (~20 turns) to stay within context limits
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
 
@@ -54,7 +55,10 @@ def think(user_input: str, skip_execute=None) -> str:
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        # Sanitize external data: strip action tag brackets to prevent prompt injection
+        import re as _re2
+        safe_weather = _re2.sub(r'[\[\]]', '', weather)
+        augmented = f"{user_input}\n\n[Live weather data: {safe_weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
@@ -64,10 +68,17 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Sanitize external API strings to prevent prompt injection
+                safe_name = _re.sub(r'[\[\]]', '', str(t['name']))
+                safe_artist = _re.sub(r'[\[\]]', '', str(t['artist']))
+                safe_uri = _re.sub(r'[^a-zA-Z0-9:_\-]', '', str(t['uri']))
+                augmented += f"\n\n[Spotify search result: '{safe_name}' by {safe_artist} — uri: {safe_uri}]"
+                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {safe_uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
+    # Trim to avoid unbounded growth and context window overflow
+    if len(history) > MAX_HISTORY:
+        del history[:-MAX_HISTORY]
 
     if USE_OLLAMA:
         messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history

@@ -65,7 +65,7 @@ def _needs_confirmation(text: str) -> bool:
     """Check if agent reply contains a sensitive tag that needs confirmation."""
     if "[READ_WHATSAPP:" in text:
         return False   # reading never needs confirmation
-    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:"]
+    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:", "[RUN:"]
     return any(tag in text for tag in sensitive)
 
 def _preview(raw_reply: str) -> str:
@@ -93,7 +93,11 @@ def handle(command: str, source: str = "voice"):
 
     # ── Handle pending confirmation ────────
     if _pending_action:
-        raw_reply, preview = _pending_action
+        # _pending_action is either a (raw_reply, preview) tuple or a need_phone dict
+        if isinstance(_pending_action, dict) and _pending_action.get("type") == "need_phone":
+            raw_reply = _pending_action
+        else:
+            raw_reply, preview = _pending_action
 
         # Handle phone number collection for unknown contacts
         if isinstance(raw_reply, dict) and raw_reply.get("type") == "need_phone":
