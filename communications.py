@@ -8,11 +8,14 @@ import time
 import re
 import os
 import json
+from urllib.parse import quote as _url_quote
 from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    # In AppleScript double-quoted strings: only backslash and double-quote need escaping.
+    # Single-quote is a literal character and must NOT be backslash-escaped.
+    return text.replace('\\', '\\\\').replace('"', '\\"')
 
 
 def _run(script: str) -> dict:
@@ -108,6 +111,13 @@ def _find_contact(name: str) -> str:
 
     return ""
 
+def _validate_phone(phone: str) -> str:
+    """Return phone if it looks like a valid E.164-ish number, else empty string."""
+    cleaned = re.sub(r'[\s\-\(\)]', '', phone)
+    if re.fullmatch(r'\+?[0-9]{7,15}', cleaned):
+        return cleaned
+    return ""
+
 def send_whatsapp(contact: str, message: str):
     print(f"  [whatsapp] → {contact}: {message[:40]}...")
     phone = _find_contact(contact)
@@ -116,14 +126,19 @@ def send_whatsapp(contact: str, message: str):
         print(f"  [whatsapp] contact '{contact}' not found in contacts.json")
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
-    # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    phone = _validate_phone(phone)
+    if not phone:
+        print(f"  [whatsapp] invalid phone number for contact '{contact}'")
+        return "Couldn't send — invalid phone number stored for that contact."
+
+    # Fully percent-encode the message so no special characters can break the URL or AppleScript.
+    encoded_msg = _url_quote(message, safe='')
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
 delay 0.5
-open location "{url}"
+open location "{_s(url)}"
 delay 3
 tell application "System Events"
     key code 36

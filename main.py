@@ -65,7 +65,9 @@ def _needs_confirmation(text: str) -> bool:
     """Check if agent reply contains a sensitive tag that needs confirmation."""
     if "[READ_WHATSAPP:" in text:
         return False   # reading never needs confirmation
-    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:"]
+    # [RUN:] executes arbitrary AppleScript (can run shell commands via do shell script)
+    # [TYPE:] sends keystrokes to whatever app is focused — included in confirmation gate
+    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:", "[RUN:", "[TYPE:"]
     return any(tag in text for tag in sensitive)
 
 def _preview(raw_reply: str) -> str:

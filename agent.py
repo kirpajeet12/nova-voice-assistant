@@ -40,20 +40,39 @@ def _save_history():
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE) as f:
-            data = json.load(f)
-        history.extend(data.get("messages", []))
-        print(f"  [memory] loaded {len(history)} messages from previous session")
+        try:
+            with open(HISTORY_FILE) as f:
+                data = json.load(f)
+            history.extend(data.get("messages", []))
+            print(f"  [memory] loaded {len(history)} messages from previous session")
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            print(f"  [memory] history file corrupt, starting fresh: {e}")
 
 
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+# Pattern matches any LLM action tag — used to strip injected tags from external data.
+_ACTION_TAG_RE = None
+
+def _sanitize_external(text: str) -> str:
+    """Strip potential LLM action tags from external data (weather, Spotify, etc.).
+
+    External APIs can return content that looks like action tags and could
+    manipulate the LLM into executing unintended actions (prompt injection).
+    """
+    global _ACTION_TAG_RE
+    import re as _re
+    if _ACTION_TAG_RE is None:
+        _ACTION_TAG_RE = _re.compile(r'\[[A-Z_]+[:\]]', _re.IGNORECASE)
+    return _ACTION_TAG_RE.sub('', text)
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _sanitize_external(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
@@ -64,8 +83,13 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Sanitize track name and artist to prevent prompt injection via
+                # maliciously named Spotify tracks that embed LLM action tags.
+                safe_name   = _sanitize_external(t['name'])
+                safe_artist = _sanitize_external(t['artist'])
+                safe_uri    = t['uri']  # URIs are base62 — no injection risk
+                augmented += f"\n\n[Spotify search result: '{safe_name}' by {safe_artist} — uri: {safe_uri}]"
+                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {safe_uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
@@ -124,8 +148,10 @@ def speak(text: str):
                     f.write(res.content)
                     tmp = f.name
                 import subprocess as _sp
-                _sp.run(["afplay", tmp])
-                os.unlink(tmp)
+                try:
+                    _sp.run(["afplay", tmp])
+                finally:
+                    os.unlink(tmp)
                 return
         except Exception as e:
             print(f"  [elevenlabs error] {e} — falling back to local TTS")

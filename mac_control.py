@@ -501,10 +501,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow well-formed Spotify URIs to prevent AppleScript injection.
+        if not re.fullmatch(r'spotify:[a-z]+:[A-Za-z0-9]+', uri):
+            print(f"  [security] rejected invalid SPOTIFY_URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
