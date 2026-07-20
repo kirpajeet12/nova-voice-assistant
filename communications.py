@@ -86,6 +86,11 @@ end tell
         phone = _re.sub(r'[\s\-\(\)]', '', phone)
         if not phone.startswith('+'):
             phone = '+91' + phone.lstrip('0')  # default country code — change if needed
+        # Validate: only digits and leading + allowed
+        import re as _re2
+        if not _re2.match(r'^\+\d{7,15}$', phone):
+            print(f"  [contacts] invalid phone format rejected: {phone}")
+            return ""
         print(f"  [contacts] found {name} → {phone}")
     return phone
 
@@ -117,8 +122,10 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe='')
+    encoded_phone = quote(phone, safe='+')
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate

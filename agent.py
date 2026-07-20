@@ -3,7 +3,6 @@
 # ─────────────────────────────────────────
 
 import requests
-import pygame
 import tempfile
 import os
 import json
@@ -32,8 +31,12 @@ history = []
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
 
 
+MAX_HISTORY_MESSAGES = 100
+
 def _save_history():
-    data = {"updated": datetime.now().isoformat(), "messages": history}
+    # Keep only the most recent MAX_HISTORY_MESSAGES to prevent unbounded growth
+    trimmed = history[-MAX_HISTORY_MESSAGES:] if len(history) > MAX_HISTORY_MESSAGES else history
+    data = {"updated": datetime.now().isoformat(), "messages": trimmed}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
 

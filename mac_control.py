@@ -23,7 +23,7 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def run_applescript(script: str) -> dict:
@@ -398,7 +398,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] tag disabled — executing raw LLM-generated AppleScript allows
+        # prompt-injection attacks to run arbitrary code on the host Mac.
+        print(f"  [security] [RUN:] tag blocked: {m.group(1).strip()[:80]}")
         return ""
 
     def _type(m):
@@ -500,7 +502,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
