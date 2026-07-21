@@ -25,7 +25,8 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -96,7 +97,12 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
         print(f"  [vision] no action found")
         return "I couldn't find that on screen."
 
-    data = json.loads(match.group())
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError:
+        print(f"  [vision] invalid JSON from model")
+        return "I couldn't parse the screen analysis."
+
     action      = data.get("action", "none")
     description = data.get("description", "")
     result      = data.get("result", "")
@@ -105,9 +111,21 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     print(f"  [vision] action: {action} → {result}")
 
     if action == "click":
-        pyautogui.click(data["x"], data["y"])
+        x, y = data.get("x"), data.get("y")
+        if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+            return "Screen coordinates were invalid."
+        screen_w, screen_h = pyautogui.size()
+        if not (0 <= x <= screen_w and 0 <= y <= screen_h):
+            return "Screen coordinates were out of bounds."
+        pyautogui.click(int(x), int(y))
     elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+        x, y = data.get("x"), data.get("y")
+        if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+            return "Screen coordinates were invalid."
+        screen_w, screen_h = pyautogui.size()
+        if not (0 <= x <= screen_w and 0 <= y <= screen_h):
+            return "Screen coordinates were out of bounds."
+        pyautogui.doubleClick(int(x), int(y))
     elif action == "type":
         pyautogui.typewrite(data.get("text", ""), interval=0.05)
     elif action == "scroll":

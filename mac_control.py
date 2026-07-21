@@ -442,7 +442,8 @@ def parse_and_execute(text: str) -> str:
         contact = m.group(1).strip()
         result = read_whatsapp_messages(contact)
         print(f"  [whatsapp read] {result}")
-        return result
+        # Escape square brackets so inbound message content cannot inject action tags
+        return result.replace("[", "⟨").replace("]", "⟩")
 
     def _whatsapp(m):
         parts = m.group(1).split("|", 1)
