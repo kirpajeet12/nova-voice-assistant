@@ -23,7 +23,7 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def run_applescript(script: str) -> dict:
@@ -442,6 +442,10 @@ def parse_and_execute(text: str) -> str:
         contact = m.group(1).strip()
         result = read_whatsapp_messages(contact)
         print(f"  [whatsapp read] {result}")
+        # Strip control tags to prevent prompt injection via incoming message content
+        result = re.sub(r'\[(?:RUN|OPEN|URL|VOLUME|NOTIFY|TYPE|NOTE|MUTE|UNMUTE'
+                        r'|SPOTIFY[A-Z_]*|WHATSAPP|READ_WHATSAPP|EMAIL|DRAFT_EMAIL'
+                        r'|CALENDAR|DELETE_CALENDAR|REMINDER|TIMER):', '[BLOCKED:', result)
         return result
 
     def _whatsapp(m):
@@ -504,7 +508,7 @@ def parse_and_execute(text: str) -> str:
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
