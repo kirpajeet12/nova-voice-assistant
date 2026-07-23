@@ -10,12 +10,21 @@ import os
 import json
 from datetime import datetime, timedelta
 
+_SHELL_SCRIPT_BLOCK = re.compile(r'do\s+shell\s+script', re.IGNORECASE)
+
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace("'", "\\'")
+            .replace('\n', '\\n')
+            .replace('\r', '\\r'))
 
 
 def _run(script: str) -> dict:
+    if _SHELL_SCRIPT_BLOCK.search(script):
+        return {'ok': False, 'error': 'Blocked: do shell script is not permitted'}
     try:
         r = subprocess.run(['osascript', '-e', script],
                            capture_output=True, text=True, timeout=20)
@@ -27,6 +36,8 @@ def _run(script: str) -> dict:
 def _run_file(script: str) -> dict:
     """Write script to temp file and run — more reliable for multi-step automation."""
     import tempfile, os
+    if _SHELL_SCRIPT_BLOCK.search(script):
+        return {'ok': False, 'error': 'Blocked: do shell script is not permitted'}
     with tempfile.NamedTemporaryFile(mode='w', suffix='.scpt', delete=False) as f:
         f.write(script)
         path = f.name
@@ -117,7 +128,8 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe='')
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
 
     script = f'''

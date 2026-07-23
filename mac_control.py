@@ -21,12 +21,21 @@ def get_weather(location: str = "") -> str:
         return f"Weather fetch failed: {e}"
 
 
+_SHELL_SCRIPT_BLOCK = re.compile(r'do\s+shell\s+script', re.IGNORECASE)
+
+
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\n', '\\n')
+            .replace('\r', '\\r'))
 
 
 def run_applescript(script: str) -> dict:
+    if _SHELL_SCRIPT_BLOCK.search(script):
+        return {'ok': False, 'error': 'Blocked: do shell script is not permitted'}
     try:
         r = subprocess.run(
             ['osascript', '-e', script],
