@@ -8,6 +8,7 @@ import time
 import re
 import os
 import json
+from urllib.parse import quote
 from datetime import datetime, timedelta
 
 
@@ -117,7 +118,7 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    encoded_msg = quote(message, safe="")
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
 
     script = f'''
@@ -307,7 +308,7 @@ def _parse_time(time_str: str) -> tuple:
             return hour, 0
         else:
             return int(time_str) % 24, 0
-    except:
+    except Exception:
         return 9, 0  # default 9am
 
 

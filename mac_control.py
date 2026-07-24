@@ -57,10 +57,15 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    if not any(url.startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked non-http URL: {url}")
+        return {"ok": False, "error": "URL scheme not allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -96,7 +101,8 @@ def _spotify_token() -> str:
             data={"grant_type": "client_credentials"}, timeout=8
         )
         return res.json().get("access_token", "")
-    except:
+    except Exception as e:
+        print(f"  [spotify token error] {e}")
         return ""
 
 def search_spotify(query: str, limit: int = 3) -> list:
@@ -487,7 +493,7 @@ def parse_and_execute(text: str) -> str:
     def _timer(m):
         try:
             set_timer(int(m.group(1).strip()))
-        except:
+        except (ValueError, IndexError):
             pass
         return ""
 

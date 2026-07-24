@@ -65,7 +65,8 @@ def _needs_confirmation(text: str) -> bool:
     """Check if agent reply contains a sensitive tag that needs confirmation."""
     if "[READ_WHATSAPP:" in text:
         return False   # reading never needs confirmation
-    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:"]
+    # [RUN:] executes arbitrary AppleScript; [TYPE:] types into any focused app
+    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:", "[RUN:", "[TYPE:"]
     return any(tag in text for tag in sensitive)
 
 def _preview(raw_reply: str) -> str:
@@ -81,6 +82,13 @@ def _preview(raw_reply: str) -> str:
     m = re.search(r'\[DRAFT_EMAIL:\s*([^|]+)\|([^|]+)', raw_reply)
     if m:
         parts.append(f"draft email to {m.group(1).strip()} about \"{m.group(2).strip()}\"")
+    m = re.search(r'\[RUN:\s*([^\]]+)\]', raw_reply)
+    if m:
+        snippet = m.group(1).strip()[:60]
+        parts.append(f"run AppleScript: \"{snippet}\"")
+    m = re.search(r'\[TYPE:\s*([^\]]+)\]', raw_reply)
+    if m:
+        parts.append(f"type: \"{m.group(1).strip()[:60]}\"")
     return " and ".join(parts) if parts else "do that"
 
 def handle(command: str, source: str = "voice"):
