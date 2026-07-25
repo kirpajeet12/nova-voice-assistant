@@ -9,10 +9,16 @@ import re
 import os
 import json
 from datetime import datetime, timedelta
+from urllib.parse import quote as _url_quote
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace("'", "\\'")
+            .replace('\n', ' ')
+            .replace('\r', ''))
 
 
 def _run(script: str) -> dict:
@@ -108,6 +114,11 @@ def _find_contact(name: str) -> str:
 
     return ""
 
+_PHONE_RE = re.compile(r'^[+\d\s\-\(\)]{7,20}$')
+
+def _validate_phone(phone: str) -> bool:
+    return bool(_PHONE_RE.match(phone.strip()))
+
 def send_whatsapp(contact: str, message: str):
     print(f"  [whatsapp] → {contact}: {message[:40]}...")
     phone = _find_contact(contact)
@@ -116,9 +127,13 @@ def send_whatsapp(contact: str, message: str):
         print(f"  [whatsapp] contact '{contact}' not found in contacts.json")
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
+    if not _validate_phone(phone):
+        print(f"  [whatsapp] invalid phone number format: {phone}")
+        return "Couldn't send — invalid phone number."
+
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    encoded_msg = _url_quote(message, safe='')
+    url = f"whatsapp://send?phone={_url_quote(phone, safe='+')}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate

@@ -23,7 +23,11 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\n', ' ')
+            .replace('\r', ''))
 
 
 def run_applescript(script: str) -> dict:
@@ -57,10 +61,16 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("https://", "http://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
+    url = url.strip()
     if not url.startswith("http"):
         url = "https://" + url
+    if not any(url.startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked unsafe url scheme: {url[:30]}")
+        return {"ok": False, "error": "Unsafe URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -371,8 +381,8 @@ def parse_and_execute(text: str) -> str:
         [URL: https://...]
         [VOLUME: 50]
         [NOTIFY: Title|message]
-        [RUN: applescript code]
         [TYPE: text to type]
+    Note: [RUN: ...] is intentionally stripped without execution — arbitrary AppleScript is unsafe.
     """
 
     def _open(m):
@@ -395,10 +405,6 @@ def parse_and_execute(text: str) -> str:
         title = parts[0].strip()
         msg   = parts[1].strip() if len(parts) > 1 else ""
         show_notification(title, msg)
-        return ""
-
-    def _run(m):
-        run_applescript(m.group(1).strip())
         return ""
 
     def _type(m):
@@ -497,7 +503,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
+    text = re.sub(r'\[RUN:\s*[^\]]+\]',            lambda m: "",   text)  # stripped — arbitrary AppleScript disallowed
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
