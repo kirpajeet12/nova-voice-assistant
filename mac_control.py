@@ -21,9 +21,19 @@ def get_weather(location: str = "") -> str:
         return f"Weather fetch failed: {e}"
 
 
+_DANGEROUS_APPLESCRIPT = re.compile(
+    r'\b(do shell script|load script|run script|'
+    r'path to resource|POSIX file|open for access|'
+    r'write to file|set eof)\b',
+    re.IGNORECASE,
+)
+
+
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    # Strip newlines/CRs first — they would terminate the string literal and allow injection
+    text = text.replace('\r', '').replace('\n', ' ')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def run_applescript(script: str) -> dict:
@@ -57,10 +67,16 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://", "whatsapp://", "spotify:")
+
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    if not any(url.lower().startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked unsafe URL scheme: {url}")
+        return {"ok": False, "error": "blocked unsafe URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,7 +414,11 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        script = m.group(1).strip()
+        if _DANGEROUS_APPLESCRIPT.search(script):
+            print(f"  [mac] blocked dangerous [RUN:] script")
+            return "I can't run that script — it contains restricted commands."
+        run_applescript(script)
         return ""
 
     def _type(m):
@@ -500,7 +520,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1

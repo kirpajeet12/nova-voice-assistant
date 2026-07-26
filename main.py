@@ -100,7 +100,11 @@ def handle(command: str, source: str = "voice"):
             contact_name = raw_reply["contact"]
             pending_msg  = raw_reply["message"]
             from communications import _save_contact, send_whatsapp
+            import re as _re
             phone = command.strip().replace(" ", "")
+            if not _re.fullmatch(r'[\d\+\-\(\)]{7,20}', phone):
+                speak("That doesn't look like a valid phone number. Please say the number again.")
+                return
             _save_contact(contact_name, phone)
             _pending_action = None
             result = send_whatsapp(contact_name, pending_msg)
