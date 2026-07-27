@@ -32,10 +32,14 @@ history = []
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
 
 
+_MAX_HISTORY = 100  # keep last N messages to prevent unbounded growth
+
 def _save_history():
-    data = {"updated": datetime.now().isoformat(), "messages": history}
+    trimmed = history[-_MAX_HISTORY:] if len(history) > _MAX_HISTORY else history
+    data = {"updated": datetime.now().isoformat(), "messages": trimmed}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
+    os.chmod(HISTORY_FILE, 0o600)
 
 
 def load_history():
@@ -127,8 +131,8 @@ def speak(text: str):
                 _sp.run(["afplay", tmp])
                 os.unlink(tmp)
                 return
-        except Exception as e:
-            print(f"  [elevenlabs error] {e} — falling back to local TTS")
+        except Exception:
+            print(f"  [elevenlabs error] request failed — falling back to local TTS")
 
     # Fallback: Mac built-in TTS (fully local, no API needed)
     # Change voice with: say -v "Samantha" or "Alex" or "Daniel"

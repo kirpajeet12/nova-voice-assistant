@@ -25,7 +25,8 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -101,15 +102,27 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     description = data.get("description", "")
     result      = data.get("result", "")
 
+    if action not in ("click", "double_click", "type", "scroll", "none"):
+        action = "none"
+
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
-    if action == "click":
-        pyautogui.click(data["x"], data["y"])
-    elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+    if action in ("click", "double_click"):
+        x = data.get("x")
+        y = data.get("y")
+        if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+            return "Vision returned invalid coordinates."
+        x, y = int(x), int(y)
+        if action == "click":
+            pyautogui.click(x, y)
+        else:
+            pyautogui.doubleClick(x, y)
     elif action == "type":
-        pyautogui.typewrite(data.get("text", ""), interval=0.05)
+        text_to_type = data.get("text", "")
+        if not isinstance(text_to_type, str):
+            return "Vision returned invalid text."
+        pyautogui.typewrite(text_to_type, interval=0.05)
     elif action == "scroll":
         direction = 1 if data.get("scroll_direction") == "up" else -1
         pyautogui.scroll(direction * 3)
