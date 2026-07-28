@@ -38,12 +38,22 @@ def _save_history():
         json.dump(data, f, indent=2)
 
 
+_VALID_ROLES = {"user", "assistant"}
+
+def _validate_message(msg) -> bool:
+    return (
+        isinstance(msg, dict)
+        and msg.get("role") in _VALID_ROLES
+        and isinstance(msg.get("content"), str)
+    )
+
 def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
-        print(f"  [memory] loaded {len(history)} messages from previous session")
+        valid = [m for m in data.get("messages", []) if _validate_message(m)]
+        history.extend(valid)
+        print(f"  [memory] loaded {len(valid)} messages from previous session")
 
 
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
