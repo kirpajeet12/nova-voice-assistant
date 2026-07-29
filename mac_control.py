@@ -174,14 +174,16 @@ end tell
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
     if uri:
-        # Use open location to navigate directly to the track — more reliable than play track AppleScript
-        script = f'''
+        if not re.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [security] rejected invalid Spotify URI: {uri!r}")
+        else:
+            script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
-        run_applescript(script)
-        return
+            run_applescript(script)
+            return
 
     # Keyboard-only fallback: search → full results → Tab to Best Result → Enter
     song_safe = _s(song)
@@ -397,10 +399,6 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
-    def _run(m):
-        run_applescript(m.group(1).strip())
-        return ""
-
     def _type(m):
         type_text(m.group(1).strip())
         return ""
@@ -497,14 +495,17 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Validate: only allow well-formed Spotify URIs to prevent AppleScript injection
+        if not re.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [security] rejected invalid Spotify URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
