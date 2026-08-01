@@ -1,8 +1,8 @@
-anthropic
-elevenlabs
-openai-whisper
-pyaudio
-numpy
-requests
-pygame
-python-dotenv
+anthropic>=0.34.0
+elevenlabs>=1.50.0
+openai-whisper>=20231117
+pyaudio>=0.2.14
+numpy>=1.26.4
+requests>=2.32.0
+pygame>=2.6.0
+python-dotenv>=1.0.1
