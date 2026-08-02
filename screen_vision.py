@@ -25,7 +25,9 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    # mktemp() is deprecated (TOCTOU race) — use mkstemp so the file is created atomically.
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -96,7 +98,11 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
         print(f"  [vision] no action found")
         return "I couldn't find that on screen."
 
-    data = json.loads(match.group())
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError as e:
+        print(f"  [vision] malformed JSON from model: {e}")
+        return "I couldn't parse the vision response."
     action      = data.get("action", "none")
     description = data.get("description", "")
     result      = data.get("result", "")

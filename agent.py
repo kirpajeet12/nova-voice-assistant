@@ -33,17 +33,28 @@ HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.jso
 
 
 def _save_history():
-    data = {"updated": datetime.now().isoformat(), "messages": history}
-    with open(HISTORY_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+    # Trim to cap before writing so the file never grows unboundedly
+    trimmed = history[-MAX_HISTORY:]
+    data = {"updated": datetime.now().isoformat(), "messages": trimmed}
+    try:
+        with open(HISTORY_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except OSError as e:
+        print(f"  [memory] couldn't save history: {e}")
 
+
+MAX_HISTORY = 40  # keep the last N messages to bound context size and disk growth
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE) as f:
-            data = json.load(f)
-        history.extend(data.get("messages", []))
-        print(f"  [memory] loaded {len(history)} messages from previous session")
+        try:
+            with open(HISTORY_FILE) as f:
+                data = json.load(f)
+            msgs = data.get("messages", [])
+            history.extend(msgs[-MAX_HISTORY:])
+            print(f"  [memory] loaded {len(history)} messages from previous session")
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"  [memory] couldn't load history ({e}) — starting fresh")
 
 
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
@@ -64,8 +75,16 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Sanitize external Spotify strings before embedding in the LLM prompt.
+                # A maliciously crafted track/artist name could inject instructions
+                # (prompt injection). Strip any characters that look like action tags.
+                safe_name   = _re.sub(r'[\[\]]', '', t['name'])
+                safe_artist = _re.sub(r'[\[\]]', '', t['artist'])
+                # Validate URI: must match Spotify's spotify:track:<base62> format
+                safe_uri = t['uri'] if _re.fullmatch(r'spotify:[a-z]+:[A-Za-z0-9]+', t['uri']) else ''
+                if safe_uri:
+                    augmented += f"\n\n[Spotify search result: '{safe_name}' by {safe_artist} — uri: {safe_uri}]"
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {safe_uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 

@@ -12,7 +12,18 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    """Escape text for safe embedding inside an AppleScript double-quoted string literal.
+
+    AppleScript has NO backslash escape sequences — a bare " always terminates the
+    string, and a bare newline breaks out of the literal, allowing code injection.
+    We use AppleScript's concatenation idiom so that user-supplied text can never
+    escape the string context or inject new AppleScript statements.
+    """
+    text = text.replace('"', '" & quote & "')
+    text = text.replace('\r\n', '" & (ASCII character 13) & (ASCII character 10) & "')
+    text = text.replace('\r', '" & (ASCII character 13) & "')
+    text = text.replace('\n', '" & linefeed & "')
+    return text
 
 
 def _run(script: str) -> dict:
@@ -117,8 +128,12 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    # Use proper percent-encoding to prevent parameter injection via special chars
+    # (e.g. a message containing & or = would corrupt the URL without this).
+    from urllib.parse import quote as _urlquote
+    encoded_msg   = _urlquote(message, safe='')
+    encoded_phone = _urlquote(phone,   safe='+')
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate

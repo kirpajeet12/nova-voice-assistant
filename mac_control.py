@@ -22,8 +22,20 @@ def get_weather(location: str = "") -> str:
 
 
 def _s(text: str) -> str:
-    """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    """Escape text for safe embedding inside an AppleScript double-quoted string literal.
+
+    AppleScript has NO backslash escape sequences — a bare " always terminates the
+    string, and a bare newline breaks out of the literal, allowing code injection.
+    We use AppleScript's concatenation idiom so that user-supplied text can never
+    escape the string context or inject new AppleScript statements.
+    """
+    # & quote & is AppleScript for a literal double-quote character
+    text = text.replace('"', '" & quote & "')
+    # Newlines break string literals and allow new AppleScript statements to be injected
+    text = text.replace('\r\n', '" & (ASCII character 13) & (ASCII character 10) & "')
+    text = text.replace('\r', '" & (ASCII character 13) & "')
+    text = text.replace('\n', '" & linefeed & "')
+    return text
 
 
 def run_applescript(script: str) -> dict:
@@ -57,10 +69,17 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Block non-HTTP schemes (file:, javascript:, smb:, etc.) to prevent local-file
+    # access and other dangerous protocols the LLM could be tricked into opening.
+    if not any(url.lower().startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked non-HTTP URL scheme: {url}")
+        return {"ok": False, "error": "Blocked non-HTTP URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -397,10 +416,6 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
-    def _run(m):
-        run_applescript(m.group(1).strip())
-        return ""
-
     def _type(m):
         type_text(m.group(1).strip())
         return ""
@@ -491,13 +506,17 @@ def parse_and_execute(text: str) -> str:
             pass
         return ""
 
+    # Strip [RUN:] tags without executing them — this tag previously allowed the LLM to
+    # run arbitrary AppleScript (including shell commands via "do shell script") with no
+    # confirmation.  We strip it silently so old prompts don't crash but can't execute.
+    text = re.sub(r'\[RUN:\s*[^\]]+\]', '', text)
+
     text = re.sub(r'\[NOTE:\s*([^\]]+)\]',          _note,          text)
     text = re.sub(r'\[DELETE_CALENDAR:\s*([^\]]+)\]', _delete_calendar, text)
     text = re.sub(r'\[OPEN:\s*([^\]]+)\]',        _open,          text)
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()

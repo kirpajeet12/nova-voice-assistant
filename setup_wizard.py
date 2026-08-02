@@ -55,7 +55,10 @@ def _load_env() -> dict:
 
 def _load_config() -> dict:
     if CONFIG_FILE.exists():
-        return json.loads(CONFIG_FILE.read_text())
+        try:
+            return json.loads(CONFIG_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
     return {}
 
 
