@@ -104,10 +104,19 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
+    screen_w, screen_h = pyautogui.size()
     if action == "click":
-        pyautogui.click(data["x"], data["y"])
+        x, y = int(data.get("x", 0)), int(data.get("y", 0))
+        if 0 <= x <= screen_w and 0 <= y <= screen_h:
+            pyautogui.click(x, y)
+        else:
+            print(f"  [vision] rejected out-of-bounds click: ({x}, {y})")
     elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+        x, y = int(data.get("x", 0)), int(data.get("y", 0))
+        if 0 <= x <= screen_w and 0 <= y <= screen_h:
+            pyautogui.doubleClick(x, y)
+        else:
+            print(f"  [vision] rejected out-of-bounds double-click: ({x}, {y})")
     elif action == "type":
         pyautogui.typewrite(data.get("text", ""), interval=0.05)
     elif action == "scroll":
