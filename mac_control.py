@@ -61,6 +61,11 @@ def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Block schemes that could execute code or read local files
+    lower = url.lower()
+    if lower.startswith(("file://", "javascript:", "data:", "vbscript:")):
+        print(f"  [mac] blocked dangerous URL scheme")
+        return {"ok": False, "error": "Blocked: dangerous URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -174,11 +179,11 @@ end tell
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
     if uri:
-        # Use open location to navigate directly to the track — more reliable than play track AppleScript
+        # Sanitize the URI before embedding in AppleScript to prevent injection
         script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
         run_applescript(script)
         return
@@ -504,7 +509,7 @@ def parse_and_execute(text: str) -> str:
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
