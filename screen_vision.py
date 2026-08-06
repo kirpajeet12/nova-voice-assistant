@@ -25,7 +25,9 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    # mktemp() is deprecated and has a TOCTOU race; use mkstemp() instead.
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -96,7 +98,12 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
         print(f"  [vision] no action found")
         return "I couldn't find that on screen."
 
-    data = json.loads(match.group())
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError:
+        print("  [vision] invalid JSON in model response")
+        return "I couldn't parse the screen analysis."
+
     action      = data.get("action", "none")
     description = data.get("description", "")
     result      = data.get("result", "")
@@ -104,10 +111,21 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
+    screen_w, screen_h = pyautogui.size()
+
+    def _safe_coords():
+        x = int(data.get("x", 0))
+        y = int(data.get("y", 0))
+        if not (0 <= x <= screen_w and 0 <= y <= screen_h):
+            raise ValueError(f"coordinates ({x},{y}) outside screen bounds ({screen_w}x{screen_h})")
+        return x, y
+
     if action == "click":
-        pyautogui.click(data["x"], data["y"])
+        x, y = _safe_coords()
+        pyautogui.click(x, y)
     elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+        x, y = _safe_coords()
+        pyautogui.doubleClick(x, y)
     elif action == "type":
         pyautogui.typewrite(data.get("text", ""), interval=0.05)
     elif action == "scroll":

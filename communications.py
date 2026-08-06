@@ -12,7 +12,19 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    """Sanitize text for safe embedding inside an AppleScript double-quoted string literal.
+
+    AppleScript does not use backslash escaping — a bare " terminates the literal.
+    Replace it with a typographic equivalent and collapse newlines/CR to spaces so
+    they cannot act as AppleScript statement separators.
+    """
+    return (
+        text
+        .replace('"', '"')   # prevent early string termination
+        .replace("'", '’')  # curly apostrophe — harmless in AppleScript strings
+        .replace('\r', ' ')
+        .replace('\n', ' ')
+    )
 
 
 def _run(script: str) -> dict:

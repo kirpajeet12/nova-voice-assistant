@@ -6,3 +6,4 @@ numpy
 requests
 pygame
 python-dotenv
+pyautogui

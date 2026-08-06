@@ -12,7 +12,8 @@ from communications import send_whatsapp, send_email, draft_email, add_calendar_
 
 def get_weather(location: str = "") -> str:
     """Fetch current weather as plain text using wttr.in"""
-    loc = location.strip().replace(" ", "+") or ""
+    from urllib.parse import quote as _quote
+    loc = _quote(location.strip(), safe="")
     try:
         url = f"https://wttr.in/{loc}?format=3"
         r = _requests.get(url, timeout=8)
@@ -22,8 +23,20 @@ def get_weather(location: str = "") -> str:
 
 
 def _s(text: str) -> str:
-    """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    """Sanitize a string for safe embedding inside an AppleScript double-quoted string literal.
+
+    AppleScript does NOT support backslash escaping inside string literals — only a bare
+    double-quote character terminates the literal.  Replacing " with the typographic
+    left-double-quote (U+201C) is the simplest lossless defence that keeps the string
+    intact without breaking out of it.  Newlines are collapsed to a space so they cannot
+    act as AppleScript statement separators.
+    """
+    return (
+        text
+        .replace('"', '“')   # prevent early string termination
+        .replace('\r', ' ')
+        .replace('\n', ' ')
+    )
 
 
 def run_applescript(script: str) -> dict:
@@ -398,7 +411,10 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] is intentionally disabled — it allowed the LLM to execute arbitrary
+        # AppleScript (including do shell script), creating a remote-code-execution path
+        # via prompt injection from voice input or fetched external content.
+        print("  [security] [RUN:] tag is disabled")
         return ""
 
     def _type(m):
@@ -500,7 +516,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())   # sanitize before embedding in AppleScript
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
