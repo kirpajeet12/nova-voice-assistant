@@ -25,7 +25,9 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    # mktemp() is deprecated and has a TOCTOU race; use NamedTemporaryFile instead
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        path = f.name
     subprocess.run(["screencapture", "-x", path])
     return path
 

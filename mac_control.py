@@ -398,7 +398,10 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] is intentionally disabled: arbitrary AppleScript (including
+        # "do shell script") can execute any shell command and must not be
+        # reachable via LLM output or voice/prompt injection.
+        print("  [security] [RUN:] tag is disabled for safety")
         return ""
 
     def _type(m):
@@ -501,10 +504,15 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow valid Spotify URIs (spotify:track:..., spotify:album:..., etc.)
+        import re as _re2
+        if not _re2.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [security] rejected invalid Spotify URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
