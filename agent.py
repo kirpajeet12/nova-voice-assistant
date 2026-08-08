@@ -3,7 +3,6 @@
 # ─────────────────────────────────────────
 
 import requests
-import pygame
 import tempfile
 import os
 import json

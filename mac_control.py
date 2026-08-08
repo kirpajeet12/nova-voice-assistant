@@ -23,7 +23,10 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text.replace('\\', '\\\\')
+                .replace('"', '\\"')
+                .replace('\n', ' ')
+                .replace('\r', ''))
 
 
 def run_applescript(script: str) -> dict:
@@ -371,7 +374,6 @@ def parse_and_execute(text: str) -> str:
         [URL: https://...]
         [VOLUME: 50]
         [NOTIFY: Title|message]
-        [RUN: applescript code]
         [TYPE: text to type]
     """
 
@@ -395,10 +397,6 @@ def parse_and_execute(text: str) -> str:
         title = parts[0].strip()
         msg   = parts[1].strip() if len(parts) > 1 else ""
         show_notification(title, msg)
-        return ""
-
-    def _run(m):
-        run_applescript(m.group(1).strip())
         return ""
 
     def _type(m):
@@ -497,7 +495,6 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
