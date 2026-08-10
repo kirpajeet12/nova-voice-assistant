@@ -61,6 +61,9 @@ def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Strip control characters (newlines, tabs) before embedding in AppleScript
+    import re as _re
+    url = _re.sub(r'[\r\n\t]', '', url)
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,7 +401,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] tag is disabled — arbitrary AppleScript execution from LLM output
+        # is a critical code-injection risk (prompt injection → RCE).
+        print("  [security] [RUN:] tag blocked — arbitrary AppleScript execution is disabled.")
         return ""
 
     def _type(m):
@@ -441,6 +446,9 @@ def parse_and_execute(text: str) -> str:
         from communications import read_whatsapp_messages
         contact = m.group(1).strip()
         result = read_whatsapp_messages(contact)
+        # Strip any action tags from read message content to prevent prompt injection
+        result = re.sub(r'\[[A-Z_]+:[^\]]*\]', '[filtered]', result)
+        result = re.sub(r'\[[A-Z_]+\]', '[filtered]', result)
         print(f"  [whatsapp read] {result}")
         return result
 
@@ -501,6 +509,11 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow well-formed spotify: URIs to prevent AppleScript injection
+        import re as _re
+        if not _re.fullmatch(r'spotify:[a-z]+:[A-Za-z0-9]+', uri):
+            print(f"  [security] [SPOTIFY_URI:] blocked — invalid URI format: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1

@@ -38,11 +38,26 @@ def _save_history():
         json.dump(data, f, indent=2)
 
 
+def _sanitize_history_content(text: str) -> str:
+    """Strip action tags from persisted history to prevent injection across sessions."""
+    import re as _re
+    text = _re.sub(r'\[[A-Z_]+:[^\]]*\]', '[filtered]', text)
+    text = _re.sub(r'\[[A-Z_]+\]', '[filtered]', text)
+    return text
+
+
 def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        messages = data.get("messages", [])
+        sanitized = []
+        for msg in messages:
+            if msg.get("role") == "user":
+                sanitized.append({**msg, "content": _sanitize_history_content(msg.get("content", ""))})
+            else:
+                sanitized.append(msg)
+        history.extend(sanitized)
         print(f"  [memory] loaded {len(history)} messages from previous session")
 
 
