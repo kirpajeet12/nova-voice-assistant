@@ -2,6 +2,7 @@
 #  Claude Agent — Brain + Voice Output
 # ─────────────────────────────────────────
 
+import re as _re
 import requests
 import pygame
 import tempfile
@@ -28,13 +29,15 @@ if not USE_OLLAMA:
 
 # Conversation memory (persists during session)
 history = []
+MAX_HISTORY = 20
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
 
 
 def _save_history():
-    data = {"updated": datetime.now().isoformat(), "messages": history}
-    with open(HISTORY_FILE, "w") as f:
+    data = {"updated": datetime.now().isoformat(), "messages": history[-MAX_HISTORY:]}
+    fd = os.open(HISTORY_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as f:
         json.dump(data, f, indent=2)
 
 
@@ -42,7 +45,14 @@ def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        valid_roles = {"user", "assistant"}
+        messages = [
+            m for m in data.get("messages", [])
+            if isinstance(m, dict)
+            and m.get("role") in valid_roles
+            and isinstance(m.get("content"), str)
+        ]
+        history.extend(messages[-MAX_HISTORY:])
         print(f"  [memory] loaded {len(history)} messages from previous session")
 
 
@@ -54,19 +64,27 @@ def think(user_input: str, skip_execute=None) -> str:
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        # Sanitize: strip injection markers and cap length
+        weather_safe = _re.sub(r'[\[\]]', '', str(weather))[:200]
+        augmented = f"{user_input}\n\n[Live weather data: {weather_safe}]"
 
-    # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
-        import re as _re
         query = _re.sub(r'(play|song|music|spotify|track|listen|on|can you|please|the)', '', user_input, flags=_re.I).strip()
         if query:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                uri = t['uri']
+                # Validate URI format and sanitize display fields to prevent prompt injection
+                if _re.fullmatch(r'spotify:(track|album|artist|playlist):[A-Za-z0-9]+', uri):
+                    name_safe   = _re.sub(r'[\[\]]', '', t['name'])[:100]
+                    artist_safe = _re.sub(r'[\[\]]', '', t['artist'])[:100]
+                    augmented += f"\n\n[Spotify search result: '{name_safe}' by {artist_safe} — uri: {uri}]"
+                    augmented += f"\nPlay it using [SPOTIFY_URI: {uri}]."
 
+    # Trim history before appending to keep context bounded
+    if len(history) >= MAX_HISTORY:
+        del history[:-MAX_HISTORY + 1]
     history.append({"role": "user", "content": augmented})
 
     if USE_OLLAMA:

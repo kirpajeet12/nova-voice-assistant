@@ -9,10 +9,11 @@ import re
 import os
 import json
 from datetime import datetime, timedelta
+from urllib.parse import quote as _urlquote
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    return text.replace('"', '" & quote & "')
 
 
 def _run(script: str) -> dict:
@@ -53,7 +54,8 @@ def _load_contacts() -> dict:
 def _save_contact(name: str, phone: str):
     contacts = _load_contacts()
     contacts[name.lower()] = phone
-    with open(CONTACTS_FILE, "w") as f:
+    fd = os.open(CONTACTS_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as f:
         json.dump(contacts, f, indent=2)
     print(f"  [contacts] saved {name} → {phone}")
 
@@ -117,8 +119,7 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    url = f"whatsapp://send?phone={_urlquote(phone, safe='+')}&text={_urlquote(message, safe='')}"
 
     script = f'''
 tell application "WhatsApp" to activate

@@ -25,7 +25,8 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
+        path = f.name
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -104,12 +105,21 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
-    if action == "click":
-        pyautogui.click(data["x"], data["y"])
-    elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+    screen_w, screen_h = pyautogui.size()
+
+    if action in ("click", "double_click"):
+        x, y = int(data.get("x", -1)), int(data.get("y", -1))
+        if not (0 <= x < screen_w and 0 <= y < screen_h):
+            print(f"  [vision] rejected out-of-bounds coordinates: ({x}, {y})")
+            return "Action rejected: coordinates out of screen bounds."
+        if action == "click":
+            pyautogui.click(x, y)
+        else:
+            pyautogui.doubleClick(x, y)
     elif action == "type":
-        pyautogui.typewrite(data.get("text", ""), interval=0.05)
+        text_to_type = data.get("text", "")
+        if text_to_type:
+            pyautogui.typewrite(text_to_type, interval=0.05)
     elif action == "scroll":
         direction = 1 if data.get("scroll_direction") == "up" else -1
         pyautogui.scroll(direction * 3)

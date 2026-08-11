@@ -22,8 +22,9 @@ def get_weather(location: str = "") -> str:
 
 
 def _s(text: str) -> str:
-    """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    """Sanitize a string for safe embedding inside an AppleScript string literal.
+    AppleScript has no backslash escapes; use string concatenation with the `quote` constant."""
+    return text.replace('"', '" & quote & "')
 
 
 def run_applescript(script: str) -> dict:
@@ -96,7 +97,8 @@ def _spotify_token() -> str:
             data={"grant_type": "client_credentials"}, timeout=8
         )
         return res.json().get("access_token", "")
-    except:
+    except Exception as e:
+        print(f"  [spotify] token fetch error: {e}")
         return ""
 
 def search_spotify(query: str, limit: int = 3) -> list:
@@ -173,8 +175,7 @@ end tell
 
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
-    if uri:
-        # Use open location to navigate directly to the track — more reliable than play track AppleScript
+    if uri and re.fullmatch(r'spotify:(track|album|artist|playlist):[A-Za-z0-9]+', uri):
         script = f'''
 tell application "Spotify" to activate
 delay 1
@@ -371,7 +372,6 @@ def parse_and_execute(text: str) -> str:
         [URL: https://...]
         [VOLUME: 50]
         [NOTIFY: Title|message]
-        [RUN: applescript code]
         [TYPE: text to type]
     """
 
@@ -395,10 +395,6 @@ def parse_and_execute(text: str) -> str:
         title = parts[0].strip()
         msg   = parts[1].strip() if len(parts) > 1 else ""
         show_notification(title, msg)
-        return ""
-
-    def _run(m):
-        run_applescript(m.group(1).strip())
         return ""
 
     def _type(m):
@@ -497,10 +493,12 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        if not re.fullmatch(r'spotify:(track|album|artist|playlist):[A-Za-z0-9]+', uri):
+            print(f"  [security] rejected invalid Spotify URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
