@@ -65,7 +65,8 @@ def _needs_confirmation(text: str) -> bool:
     """Check if agent reply contains a sensitive tag that needs confirmation."""
     if "[READ_WHATSAPP:" in text:
         return False   # reading never needs confirmation
-    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:"]
+    # [RUN:] can execute arbitrary AppleScript including shell commands — always confirm.
+    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:", "[RUN:"]
     return any(tag in text for tag in sensitive)
 
 def _preview(raw_reply: str) -> str:
@@ -83,11 +84,15 @@ def _preview(raw_reply: str) -> str:
         parts.append(f"draft email to {m.group(1).strip()} about \"{m.group(2).strip()}\"")
     return " and ".join(parts) if parts else "do that"
 
+MAX_INPUT_LEN = 1000  # guard against runaway token consumption
+
 def handle(command: str, source: str = "voice"):
     global _listening, _pending_action, awake, last_spoke
 
     if not command or len(command) < 3:
         return
+
+    command = command[:MAX_INPUT_LEN]
 
     cmd_lower = command.lower().strip()
 
@@ -171,8 +176,9 @@ def _text_input_loop():
     while True:
         try:
             line = input()
-            if line.strip():
-                _input_queue.put(("text", line.strip()))
+            stripped = line.strip()
+            if stripped:
+                _input_queue.put(("text", stripped[:MAX_INPUT_LEN]))
         except EOFError:
             break
 
