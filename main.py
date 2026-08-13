@@ -5,6 +5,7 @@ import queue
 import pyaudio
 import numpy as np
 import whisper
+_state_lock = threading.Lock()
 from config import WHISPER_MODEL
 from setup_wizard import run_setup
 _cfg = run_setup()
@@ -59,7 +60,12 @@ def _wake_word(text: str):
 CONFIRM_WORDS = ["yes", "yeah", "yep", "sure", "go ahead", "do it", "send it", "confirm", "ok", "okay"]
 CANCEL_WORDS  = ["no", "nope", "cancel", "stop", "don't", "abort", "nevermind", "never mind"]
 
-_pending_action = None   # stores (reply_with_tags, spoken_preview) when waiting for confirm
+import re as _re_main
+def _validate_phone(phone: str) -> bool:
+    """Accept E.164-style numbers (optional leading +, 7-15 digits)."""
+    return bool(_re_main.match(r'^\+?\d{7,15}$', phone))
+
+_pending_action = None   # guarded by _state_lock
 
 def _needs_confirmation(text: str) -> bool:
     """Check if agent reply contains a sensitive tag that needs confirmation."""
@@ -92,8 +98,10 @@ def handle(command: str, source: str = "voice"):
     cmd_lower = command.lower().strip()
 
     # ── Handle pending confirmation ────────
-    if _pending_action:
-        raw_reply, preview = _pending_action
+    with _state_lock:
+        current_pending = _pending_action
+    if current_pending:
+        raw_reply, preview = current_pending
 
         # Handle phone number collection for unknown contacts
         if isinstance(raw_reply, dict) and raw_reply.get("type") == "need_phone":
@@ -101,8 +109,15 @@ def handle(command: str, source: str = "voice"):
             pending_msg  = raw_reply["message"]
             from communications import _save_contact, send_whatsapp
             phone = command.strip().replace(" ", "")
+            if not _validate_phone(phone):
+                _listening = False
+                speak("That doesn't look like a valid phone number. Please try again.")
+                time.sleep(1.5)
+                _listening = True
+                return
             _save_contact(contact_name, phone)
-            _pending_action = None
+            with _state_lock:
+                _pending_action = None
             result = send_whatsapp(contact_name, pending_msg)
             _listening = False
             speak(result if "NEED_PHONE" not in result else "Something went wrong.")
@@ -111,7 +126,8 @@ def handle(command: str, source: str = "voice"):
             return
 
         if any(w in cmd_lower for w in CONFIRM_WORDS):
-            _pending_action = None
+            with _state_lock:
+                _pending_action = None
             print(f"  [confirmed] executing action")
             from mac_control import parse_and_execute
             clean = parse_and_execute(raw_reply)
@@ -122,7 +138,8 @@ def handle(command: str, source: str = "voice"):
                 import re as _re
                 m = _re.search(r'\[WHATSAPP:\s*[^|]+\|([^\]]+)\]', raw_reply)
                 pending_msg = m.group(1).strip() if m else ""
-                _pending_action = {"type": "need_phone", "contact": contact_name, "message": pending_msg}
+                with _state_lock:
+                    _pending_action = {"type": "need_phone", "contact": contact_name, "message": pending_msg}
                 _listening = False
                 speak(f"I don't have {contact_name}'s number. What is it?")
                 time.sleep(1.5)
@@ -135,7 +152,8 @@ def handle(command: str, source: str = "voice"):
             time.sleep(1.5)
             _listening = True
         elif any(w in cmd_lower for w in CANCEL_WORDS):
-            _pending_action = None
+            with _state_lock:
+                _pending_action = None
             print(f"  [cancelled]")
             _listening = False
             speak("got it, cancelled.")
@@ -143,7 +161,8 @@ def handle(command: str, source: str = "voice"):
             _listening = True
         else:
             # Not a yes/no — treat as new command, clear pending
-            _pending_action = None
+            with _state_lock:
+                _pending_action = None
             handle(command, source)
         return
 
@@ -153,7 +172,8 @@ def handle(command: str, source: str = "voice"):
 
     if raw_reply and _needs_confirmation(raw_reply):
         preview = _preview(raw_reply)
-        _pending_action = (raw_reply, preview)
+        with _state_lock:
+            _pending_action = (raw_reply, preview)
         confirm_msg = f"should I {preview}?"
         print(f"  [confirm?] {confirm_msg}")
         _listening = False

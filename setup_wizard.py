@@ -178,6 +178,7 @@ CRITICAL: Every action MUST include the tag. Without the tag, nothing happens.
 Apps & Web:
 [OPEN: AppName]                   — open any app
 [URL: https://...]                — open a website
+NOTE: Do NOT use [RUN:] — that tag is disabled for security reasons.
 
 Notes:
 [NOTE: text content]              — create and save a note in Notes app
