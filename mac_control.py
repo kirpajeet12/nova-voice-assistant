@@ -23,7 +23,11 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\r', '')
+            .replace('\n', ' '))
 
 
 def run_applescript(script: str) -> dict:
@@ -57,10 +61,15 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    if not any(url.startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked non-http URL scheme: {url[:30]}")
+        return {"ok": False, "error": "disallowed URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -500,7 +509,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1

@@ -7,6 +7,8 @@ import numpy as np
 import whisper
 from config import WHISPER_MODEL
 from setup_wizard import run_setup
+
+_state_lock = threading.Lock()
 _cfg = run_setup()
 from agent import think, speak, load_history, ASSISTANT_NAME
 
@@ -185,9 +187,10 @@ def _voice_loop():
         audio = _record(CHUNK_SECS)
 
         if not _has_speech(audio):
-            if awake and (time.time() - last_spoke) > SLEEP_AFTER:
-                print("  [sleeping]")
-                awake = False
+            with _state_lock:
+                if awake and (time.time() - last_spoke) > SLEEP_AFTER:
+                    print("  [sleeping]")
+                    awake = False
             continue
 
         text = _transcribe(audio)
@@ -196,11 +199,14 @@ def _voice_loop():
 
         print(f"  [heard] '{text}'")
 
-        if not awake:
+        with _state_lock:
+            _awake_now = awake
+        if not _awake_now:
             inline = _wake_word(text)
             if inline is not None:
-                awake      = True
-                last_spoke = time.time()
+                with _state_lock:
+                    awake      = True
+                    last_spoke = time.time()
                 if len(inline) > 3:
                     _input_queue.put(("voice", inline))
                 else:
@@ -208,7 +214,8 @@ def _voice_loop():
         else:
             inline  = _wake_word(text)
             command = inline if (inline and len(inline) > 3) else text
-            last_spoke = time.time()
+            with _state_lock:
+                last_spoke = time.time()
             _input_queue.put(("voice", command))
 
 # ── Main loop ─────────────────────────────
@@ -234,9 +241,11 @@ while True:
         speak("Yeah?")
         time.sleep(0.8)
         _listening = True
-        awake = True
-        last_spoke = time.time()
+        with _state_lock:
+            awake = True
+            last_spoke = time.time()
     else:
-        awake      = True
-        last_spoke = time.time()
+        with _state_lock:
+            awake      = True
+            last_spoke = time.time()
         handle(command, source)

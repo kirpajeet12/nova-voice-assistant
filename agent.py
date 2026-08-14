@@ -28,6 +28,7 @@ if not USE_OLLAMA:
 
 # Conversation memory (persists during session)
 history = []
+MAX_HISTORY = 40  # keep last 40 turns (~20 exchanges) to avoid memory/cost blowup
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
 
@@ -93,11 +94,15 @@ def think(user_input: str, skip_execute=None) -> str:
     # If caller wants to handle execution (e.g. after confirmation), skip it here
     if skip_execute and skip_execute(raw_reply):
         history.append({"role": "assistant", "content": raw_reply})
+        if len(history) > MAX_HISTORY:
+            del history[:-MAX_HISTORY]
         _save_history()
         return raw_reply   # return raw so caller can execute after confirm
 
     clean_reply = parse_and_execute(raw_reply)
     history.append({"role": "assistant", "content": raw_reply})
+    if len(history) > MAX_HISTORY:
+        del history[:-MAX_HISTORY]
     _save_history()
     print(f"\nAgent: {clean_reply}\n")
     return clean_reply
