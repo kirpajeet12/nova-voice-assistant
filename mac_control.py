@@ -23,7 +23,7 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def run_applescript(script: str) -> dict:
@@ -57,9 +57,15 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_BLOCKED_SCHEMES = ("javascript:", "vbscript:", "data:", "file:")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    url_lower = url.lower().strip()
+    if any(url_lower.startswith(s) for s in _BLOCKED_SCHEMES):
+        print(f"  [mac] blocked dangerous URL scheme: {url[:50]}")
+        return {"ok": False, "error": "blocked URL scheme"}
+    if not url_lower.startswith("http"):
         url = "https://" + url
     return run_applescript(f'open location "{_s(url)}"')
 
@@ -397,8 +403,15 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
+    _RUN_BLOCKED = ("do shell script", "do javascript", "load script")
+
     def _run(m):
-        run_applescript(m.group(1).strip())
+        script = m.group(1).strip()
+        lowered = script.lower()
+        if any(blocked in lowered for blocked in _RUN_BLOCKED):
+            print(f"  [mac] blocked dangerous AppleScript construct in [RUN:] tag")
+            return ""
+        run_applescript(script)
         return ""
 
     def _type(m):
@@ -501,10 +514,13 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        if not uri.startswith("spotify:"):
+            print(f"  [mac] blocked non-spotify URI in [SPOTIFY_URI:] tag")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 

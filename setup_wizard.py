@@ -40,6 +40,7 @@ def _write_env(keys: dict):
     for k, v in keys.items():
         lines.append(f"{k}={v}")
     ENV_FILE.write_text("\n".join(lines) + "\n")
+    ENV_FILE.chmod(0o600)  # owner read/write only — secrets should not be world-readable
 
 
 def _load_env() -> dict:
