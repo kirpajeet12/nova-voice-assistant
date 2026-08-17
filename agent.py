@@ -30,9 +30,17 @@ if not USE_OLLAMA:
 history = []
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
+MAX_HISTORY_PAIRS = 40  # keep last 40 user/assistant pairs to avoid context window overflow
+
+
+def _trim_history():
+    max_msgs = MAX_HISTORY_PAIRS * 2
+    if len(history) > max_msgs:
+        del history[:len(history) - max_msgs]
 
 
 def _save_history():
+    _trim_history()
     data = {"updated": datetime.now().isoformat(), "messages": history}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
@@ -42,7 +50,10 @@ def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        msgs = data.get("messages", [])
+        # Load only the last MAX_HISTORY_PAIRS pairs from persisted history
+        max_msgs = MAX_HISTORY_PAIRS * 2
+        history.extend(msgs[-max_msgs:] if len(msgs) > max_msgs else msgs)
         print(f"  [memory] loaded {len(history)} messages from previous session")
 
 

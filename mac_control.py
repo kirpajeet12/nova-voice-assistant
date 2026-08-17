@@ -442,6 +442,8 @@ def parse_and_execute(text: str) -> str:
         contact = m.group(1).strip()
         result = read_whatsapp_messages(contact)
         print(f"  [whatsapp read] {result}")
+        # Sanitize to prevent action-tag injection from incoming message content
+        result = result.replace('[', '(').replace(']', ')')
         return result
 
     def _whatsapp(m):
@@ -500,7 +502,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
