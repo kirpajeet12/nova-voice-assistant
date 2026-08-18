@@ -12,7 +12,16 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    # Newlines are statement separators in AppleScript; strip them to prevent
+    # injection out of string context even after quote-escaping.
+    return (
+        text.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace("'", "\\'")
+            .replace('\r\n', ' ')
+            .replace('\n', ' ')
+            .replace('\r', ' ')
+    )
 
 
 def _run(script: str) -> dict:
@@ -116,9 +125,12 @@ def send_whatsapp(contact: str, message: str):
         print(f"  [whatsapp] contact '{contact}' not found in contacts.json")
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
-    # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    # URL scheme — opens WhatsApp directly to the chat with message pre-filled.
+    # Use urllib.parse.quote so characters like & and = don't inject extra URL params.
+    from urllib.parse import quote as _quote
+    encoded_msg = _quote(message, safe='')
+    encoded_phone = _quote(phone, safe='+')
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate

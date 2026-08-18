@@ -23,7 +23,15 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    # Escape backslashes first, then quotes, then newlines (which are statement
+    # separators in AppleScript and would allow injection out of string context).
+    return (
+        text.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\r\n', ' ')
+            .replace('\n', ' ')
+            .replace('\r', ' ')
+    )
 
 
 def run_applescript(script: str) -> dict:
@@ -57,10 +65,17 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Block non-HTTP(S) schemes (file://, javascript:, etc.) to prevent local
+    # file access or script execution via URL.
+    if not any(url.lower().startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked non-http URL: {url}")
+        return {"ok": False, "error": "Blocked non-HTTP URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -178,7 +193,7 @@ end tell
         script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
         run_applescript(script)
         return
@@ -398,7 +413,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] executes arbitrary AppleScript from LLM output — disabled to
+        # prevent prompt-injection attacks from triggering unrestricted code execution.
+        print(f"  [mac] [RUN:] tag is disabled for security reasons")
         return ""
 
     def _type(m):
@@ -500,7 +517,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1

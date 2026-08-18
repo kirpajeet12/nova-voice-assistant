@@ -25,7 +25,10 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    # mktemp() is insecure (TOCTOU race). Use mkstemp to atomically claim the
+    # path, then close the fd before handing it to screencapture.
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
     subprocess.run(["screencapture", "-x", path])
     return path
 
