@@ -23,7 +23,7 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ')
 
 
 def run_applescript(script: str) -> dict:
@@ -59,8 +59,11 @@ def quit_app(name: str):
 
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    if not url.startswith(("https://", "http://")):
+        print(f"  [security] rejected non-http URL: {url}")
+        return {"ok": False, "error": "Only http/https URLs are allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -173,14 +176,8 @@ end tell
 
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
-    if uri:
-        # Use open location to navigate directly to the track — more reliable than play track AppleScript
-        script = f'''
-tell application "Spotify" to activate
-delay 1
-open location "{uri}"
-'''
-        run_applescript(script)
+    if uri and re.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+        run_applescript(f'tell application "Spotify" to activate\ndelay 1\nopen location "{_s(uri)}"')
         return
 
     # Keyboard-only fallback: search → full results → Tab to Best Result → Enter
@@ -501,11 +498,11 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
-        run_applescript(f'''
-tell application "Spotify" to activate
-delay 1
-open location "{uri}"
-''')
+        # Validate URI format before passing to AppleScript
+        if not re.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [security] rejected invalid Spotify URI: {uri}")
+            return ""
+        run_applescript(f'tell application "Spotify" to activate\ndelay 1\nopen location "{_s(uri)}"')
         return ""
 
     text = re.sub(r'\[SPOTIFY_URI:\s*([^\]]+)\]',  _spotify_uri,   text)

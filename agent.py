@@ -49,12 +49,19 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+_TAG_RE = re.compile(r'\[[A-Z_]+:?[^\]]*\]')
+_SPOTIFY_URI_RE = re.compile(r'^spotify:[a-z]+:[A-Za-z0-9]+$')
+
+def _sanitize_external(text: str) -> str:
+    """Strip control tags from external data to prevent prompt injection."""
+    return _TAG_RE.sub('', text)
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        augmented = f"{user_input}\n\n[Live weather data: {_sanitize_external(weather)}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
@@ -64,8 +71,13 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                uri = t['uri']
+                # Only pass validated Spotify URIs to the LLM prompt
+                if _SPOTIFY_URI_RE.match(uri):
+                    safe_name   = _sanitize_external(t['name'])
+                    safe_artist = _sanitize_external(t['artist'])
+                    augmented += f"\n\n[Spotify search result: '{safe_name}' by {safe_artist} — uri: {uri}]"
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
@@ -123,9 +135,11 @@ def speak(text: str):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
                     f.write(res.content)
                     tmp = f.name
-                import subprocess as _sp
-                _sp.run(["afplay", tmp])
-                os.unlink(tmp)
+                try:
+                    import subprocess as _sp
+                    _sp.run(["afplay", tmp])
+                finally:
+                    os.unlink(tmp)
                 return
         except Exception as e:
             print(f"  [elevenlabs error] {e} — falling back to local TTS")
