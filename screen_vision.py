@@ -25,7 +25,8 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
+        path = f.name
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -96,18 +97,32 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
         print(f"  [vision] no action found")
         return "I couldn't find that on screen."
 
-    data = json.loads(match.group())
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError:
+        print(f"  [vision] invalid JSON in model response")
+        return "I couldn't parse the vision model's response."
+
     action      = data.get("action", "none")
     description = data.get("description", "")
     result      = data.get("result", "")
 
+    if action not in ("click", "double_click", "type", "scroll", "none"):
+        print(f"  [vision] unknown action: {action}")
+        return "Vision model returned an unrecognized action."
+
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
+    screen_w, screen_h = pyautogui.size()
     if action == "click":
-        pyautogui.click(data["x"], data["y"])
+        x = max(0, min(int(data.get("x", 0)), screen_w - 1))
+        y = max(0, min(int(data.get("y", 0)), screen_h - 1))
+        pyautogui.click(x, y)
     elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+        x = max(0, min(int(data.get("x", 0)), screen_w - 1))
+        y = max(0, min(int(data.get("y", 0)), screen_h - 1))
+        pyautogui.doubleClick(x, y)
     elif action == "type":
         pyautogui.typewrite(data.get("text", ""), interval=0.05)
     elif action == "scroll":

@@ -96,7 +96,7 @@ def _spotify_token() -> str:
             data={"grant_type": "client_credentials"}, timeout=8
         )
         return res.json().get("access_token", "")
-    except:
+    except Exception:
         return ""
 
 def search_spotify(query: str, limit: int = 3) -> list:
@@ -178,7 +178,7 @@ end tell
         script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
         run_applescript(script)
         return
@@ -397,10 +397,6 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
-    def _run(m):
-        run_applescript(m.group(1).strip())
-        return ""
-
     def _type(m):
         type_text(m.group(1).strip())
         return ""
@@ -487,7 +483,7 @@ def parse_and_execute(text: str) -> str:
     def _timer(m):
         try:
             set_timer(int(m.group(1).strip()))
-        except:
+        except Exception:
             pass
         return ""
 
@@ -497,14 +493,13 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 

@@ -9,6 +9,7 @@ import re
 import os
 import json
 from datetime import datetime, timedelta
+from urllib.parse import quote, urlencode
 
 
 def _s(text: str) -> str:
@@ -117,8 +118,7 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    url = "whatsapp://send?" + urlencode({"phone": phone, "text": message})
 
     script = f'''
 tell application "WhatsApp" to activate
