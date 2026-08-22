@@ -398,7 +398,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] executes arbitrary AppleScript — intentionally disabled to prevent
+        # prompt-injection from escalating to arbitrary code execution.
+        print("  [security] [RUN:] tag blocked — use specific action tags instead")
         return ""
 
     def _type(m):
@@ -501,10 +503,15 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow well-formed Spotify URIs to prevent AppleScript injection
+        import re as _re
+        if not _re.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [security] rejected malformed SPOTIFY_URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
