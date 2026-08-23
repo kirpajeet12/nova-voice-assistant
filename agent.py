@@ -40,10 +40,13 @@ def _save_history():
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE) as f:
-            data = json.load(f)
-        history.extend(data.get("messages", []))
-        print(f"  [memory] loaded {len(history)} messages from previous session")
+        try:
+            with open(HISTORY_FILE) as f:
+                data = json.load(f)
+            history.extend(data.get("messages", []))
+            print(f"  [memory] loaded {len(history)} messages from previous session")
+        except (json.JSONDecodeError, KeyError, IOError) as e:
+            print(f"  [memory] could not load history: {e} — starting fresh")
 
 
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")

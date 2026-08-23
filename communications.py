@@ -46,8 +46,11 @@ CONTACTS_FILE = os.path.join(os.path.dirname(__file__), "contacts.json")
 
 def _load_contacts() -> dict:
     if os.path.exists(CONTACTS_FILE):
-        with open(CONTACTS_FILE) as f:
-            return json.load(f)
+        try:
+            with open(CONTACTS_FILE) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"  [contacts] could not load contacts: {e}")
     return {}
 
 def _save_contact(name: str, phone: str):
@@ -81,11 +84,13 @@ end tell
     result = _run(script)
     phone = result.get("output", "").strip()
     if phone:
-        # Normalize: remove spaces, dashes, brackets
+        # Normalize: remove spaces, dashes, brackets, then keep only digits and leading +
         import re as _re
         phone = _re.sub(r'[\s\-\(\)]', '', phone)
         if not phone.startswith('+'):
             phone = '+91' + phone.lstrip('0')  # default country code — change if needed
+        # Strip any non-phone characters to prevent URL/AppleScript injection
+        phone = '+' + _re.sub(r'[^0-9]', '', phone[1:]) if phone.startswith('+') else _re.sub(r'[^0-9]', '', phone)
         print(f"  [contacts] found {name} → {phone}")
     return phone
 
@@ -117,13 +122,15 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe="")
+    phone_safe = _s(phone)
+    url = f"whatsapp://send?phone={phone_safe}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
 delay 0.5
-open location "{url}"
+open location "{_s(url)}"
 delay 3
 tell application "System Events"
     key code 36
