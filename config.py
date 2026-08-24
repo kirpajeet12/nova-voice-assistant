@@ -27,7 +27,6 @@ You can control the user's Mac using these tags in your response:
 - Open a URL:           [URL: https://github.com]
 - Set volume (0-100):   [VOLUME: 50]
 - Show notification:    [NOTIFY: Claude|your message here]
-- Run AppleScript:      [RUN: tell application "Finder" to open home]
 - Type text:            [TYPE: hello world]
 
 Examples:
@@ -37,4 +36,5 @@ Examples:
 - "remind me in 5 mins" → [NOTIFY: Claude|check your task] Reminder set.
 
 Only use control tags when the user asks you to do something on their Mac.
+NEVER emit [RUN:] tags — arbitrary AppleScript execution is disabled for security.
 """
