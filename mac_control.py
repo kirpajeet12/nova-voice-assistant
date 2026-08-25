@@ -398,7 +398,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN: ...] disabled — arbitrary AppleScript execution is a code injection risk
+        # (AppleScript supports `do shell script` which would allow arbitrary shell commands)
+        print("  [security] [RUN:] tag is disabled for safety")
         return ""
 
     def _type(m):
@@ -500,7 +502,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1

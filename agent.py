@@ -42,7 +42,14 @@ def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        valid_roles = {"user", "assistant"}
+        messages = [
+            m for m in data.get("messages", [])
+            if isinstance(m, dict)
+            and m.get("role") in valid_roles
+            and isinstance(m.get("content"), str)
+        ]
+        history.extend(messages)
         print(f"  [memory] loaded {len(history)} messages from previous session")
 
 
