@@ -27,8 +27,6 @@ You can control the user's Mac using these tags in your response:
 - Open a URL:           [URL: https://github.com]
 - Set volume (0-100):   [VOLUME: 50]
 - Show notification:    [NOTIFY: Claude|your message here]
-- Run AppleScript:      [RUN: tell application "Finder" to open home]
-- Type text:            [TYPE: hello world]
 
 Examples:
 - "open spotify" → Sure! [OPEN: Spotify]

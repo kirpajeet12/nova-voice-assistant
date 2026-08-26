@@ -42,18 +42,30 @@ def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        valid_roles = {"user", "assistant"}
+        valid_msgs = [
+            m for m in data.get("messages", [])
+            if isinstance(m, dict)
+            and m.get("role") in valid_roles
+            and isinstance(m.get("content"), str)
+        ]
+        history.extend(valid_msgs)
         print(f"  [memory] loaded {len(history)} messages from previous session")
 
 
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+def _sanitize_external(text: str) -> str:
+    """Strip characters that could be used for prompt injection from external data."""
+    return text.replace('[', '(').replace(']', ')')
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _sanitize_external(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
@@ -64,8 +76,12 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                safe_name   = _sanitize_external(t['name'])
+                safe_artist = _sanitize_external(t['artist'])
+                safe_uri    = t['uri'] if t['uri'].startswith('spotify:') else ''
+                if safe_uri:
+                    augmented += f"\n\n[Spotify search result: '{safe_name}' by {safe_artist} — uri: {safe_uri}]"
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {safe_uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
