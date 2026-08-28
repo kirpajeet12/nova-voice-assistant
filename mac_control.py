@@ -23,7 +23,14 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    # Escape backslashes first, then quotes, then strip newlines/CRs that
+    # would break out of the string literal and allow AppleScript injection.
+    return (
+        text.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\n', ' ')
+            .replace('\r', ' ')
+    )
 
 
 def run_applescript(script: str) -> dict:
@@ -57,10 +64,16 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_SCHEMES = ("https://", "http://", "spotify:", "whatsapp://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Reject non-http(s) schemes that could execute arbitrary code (file:, javascript:, etc.)
+    if not url.startswith(("https://", "http://")):
+        print(f"  [mac] blocked unsafe URL scheme: {url}")
+        return {"ok": False, "error": "unsafe URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,7 +411,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] is disabled — executing arbitrary LLM-generated AppleScript is a
+        # remote code execution risk (prompt injection via external data could abuse it).
+        print(f"  [mac] [RUN:] tag is disabled for security reasons")
         return ""
 
     def _type(m):
@@ -501,10 +516,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Validate it's actually a Spotify URI before passing to open location
+        if not uri.startswith("spotify:"):
+            print(f"  [mac] blocked non-Spotify URI: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 

@@ -177,7 +177,7 @@ CRITICAL: Every action MUST include the tag. Without the tag, nothing happens.
 
 Apps & Web:
 [OPEN: AppName]                   — open any app
-[URL: https://...]                — open a website
+[URL: https://...]                — open a website (https only)
 
 Notes:
 [NOTE: text content]              — create and save a note in Notes app
@@ -192,6 +192,8 @@ Media:
 
 Typing:
 [TYPE: text to type]              — type text into any focused app
+
+
 
 Messaging:
 [READ_WHATSAPP: contact]          — read last message FROM a contact
