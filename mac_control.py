@@ -23,7 +23,14 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    # Escape backslash and double-quote first; strip newlines/CRs which would
+    # break out of an AppleScript string literal and allow code injection.
+    return (
+        text.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\n', ' ')
+            .replace('\r', ' ')
+    )
 
 
 def run_applescript(script: str) -> dict:
@@ -57,10 +64,17 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://", "spotify:")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Reject non-http(s) schemes (file://, javascript:, etc.) to prevent local
+    # file access or script execution via the URL tag.
+    if not any(url.lower().startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked unsafe URL scheme: {url}")
+        return {"ok": False, "error": "Blocked: only http/https URLs are allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
