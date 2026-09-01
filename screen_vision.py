@@ -25,7 +25,9 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    # mktemp() has a TOCTOU race; use NamedTemporaryFile instead
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        path = f.name
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -96,7 +98,12 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
         print(f"  [vision] no action found")
         return "I couldn't find that on screen."
 
-    data = json.loads(match.group())
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError as e:
+        print(f"  [vision] failed to parse action JSON: {e}")
+        return "Could not parse vision model response."
+
     action      = data.get("action", "none")
     description = data.get("description", "")
     result      = data.get("result", "")
@@ -104,12 +111,25 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
+    screen_w, screen_h = pyautogui.size()
+
     if action == "click":
-        pyautogui.click(data["x"], data["y"])
+        x, y = int(data.get("x", 0)), int(data.get("y", 0))
+        if not (0 <= x <= screen_w and 0 <= y <= screen_h):
+            print(f"  [vision] click coordinates out of bounds: ({x}, {y})")
+            return "Click coordinates out of screen bounds."
+        pyautogui.click(x, y)
     elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+        x, y = int(data.get("x", 0)), int(data.get("y", 0))
+        if not (0 <= x <= screen_w and 0 <= y <= screen_h):
+            print(f"  [vision] double-click coordinates out of bounds: ({x}, {y})")
+            return "Click coordinates out of screen bounds."
+        pyautogui.doubleClick(x, y)
     elif action == "type":
-        pyautogui.typewrite(data.get("text", ""), interval=0.05)
+        text_to_type = data.get("text", "")
+        if len(text_to_type) > 500:
+            text_to_type = text_to_type[:500]
+        pyautogui.typewrite(text_to_type, interval=0.05)
     elif action == "scroll":
         direction = 1 if data.get("scroll_direction") == "up" else -1
         pyautogui.scroll(direction * 3)

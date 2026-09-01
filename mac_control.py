@@ -59,8 +59,12 @@ def quit_app(name: str):
 
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    # Only allow safe web schemes; block javascript:, file:, data:, etc.
+    if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    if not url.startswith(("http://", "https://")):
+        print(f"  [mac] blocked unsafe URL scheme: {url}")
+        return {"ok": False, "error": "Unsafe URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,11 +402,18 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] is disabled: executing arbitrary AppleScript from LLM output
+        # allows prompt-injection to run any code on the host machine.
+        print("  [mac] [RUN:] tag is disabled for security reasons")
         return ""
 
     def _type(m):
-        type_text(m.group(1).strip())
+        text_to_type = m.group(1).strip()
+        # Limit keystroke injection length to reduce impact of prompt injection
+        if len(text_to_type) > 500:
+            print("  [mac] [TYPE:] content too long, truncating")
+            text_to_type = text_to_type[:500]
+        type_text(text_to_type)
         return ""
 
     def _note(m):
@@ -501,10 +512,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow genuine Spotify URIs to prevent scheme injection
+        if not uri.startswith("spotify:"):
+            print(f"  [mac] blocked non-spotify URI: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 

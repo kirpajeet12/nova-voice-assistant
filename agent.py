@@ -34,8 +34,13 @@ HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.jso
 
 def _save_history():
     data = {"updated": datetime.now().isoformat(), "messages": history}
-    with open(HISTORY_FILE, "w") as f:
+    # Write to a temp file then atomic-rename; set owner-only permissions (0o600)
+    import stat
+    tmp = HISTORY_FILE + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
+    os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)
+    os.replace(tmp, HISTORY_FILE)
 
 
 def load_history():
