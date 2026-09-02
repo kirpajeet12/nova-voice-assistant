@@ -23,6 +23,8 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
+    # Strip newlines first — a raw newline breaks out of an AS string literal
+    text = text.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
     return text.replace('\\', '\\\\').replace('"', '\\"')
 
 
@@ -59,8 +61,13 @@ def quit_app(name: str):
 
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    # Only allow http/https — block file://, javascript:, data:, etc.
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    if not url.startswith(("http://", "https://")):
+        print(f"  [mac] blocked unsafe URL scheme: {url}")
+        return {"ok": False, "error": "unsafe URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 

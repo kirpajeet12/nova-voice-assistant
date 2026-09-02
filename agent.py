@@ -49,11 +49,20 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+# Control-tag pattern — strip these from external data to prevent prompt injection
+import re as _re_global
+_TAG_RE = _re_global.compile(r'\[(?:OPEN|URL|VOLUME|NOTIFY|RUN|TYPE|NOTE|DELETE_CALENDAR|SPOTIFY[^]]*|MUTE|UNMUTE|READ_WHATSAPP|WHATSAPP|EMAIL|DRAFT_EMAIL|CALENDAR|REMINDER|TIMER):[^\]]*\]', _re_global.I)
+
+def _sanitize_external(text: str) -> str:
+    """Strip control tags from external API data to prevent prompt injection."""
+    return _TAG_RE.sub('', text)
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _sanitize_external(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
@@ -64,8 +73,12 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Sanitize track name and artist from Spotify to prevent prompt injection
+                name   = _sanitize_external(t['name'])
+                artist = _sanitize_external(t['artist'])
+                uri    = t['uri']
+                augmented += f"\n\n[Spotify search result: '{name}' by {artist} — uri: {uri}]"
+                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
