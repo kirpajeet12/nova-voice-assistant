@@ -174,14 +174,18 @@ end tell
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
     if uri:
-        # Use open location to navigate directly to the track — more reliable than play track AppleScript
-        script = f'''
+        # Validate URI format before embedding in AppleScript
+        if not re.match(r'^spotify:[a-zA-Z0-9:_-]+$', uri):
+            print(f"  [security] rejected invalid Spotify URI: {uri[:80]}")
+        else:
+            # Use open location to navigate directly to the track — more reliable than play track AppleScript
+            script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
-        run_applescript(script)
-        return
+            run_applescript(script)
+            return
 
     # Keyboard-only fallback: search → full results → Tab to Best Result → Enter
     song_safe = _s(song)
@@ -501,10 +505,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Validate URI is a spotify: scheme before embedding in AppleScript
+        if not re.match(r'^spotify:[a-zA-Z0-9:_-]+$', uri):
+            print(f"  [security] rejected invalid Spotify URI: {uri[:80]}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 

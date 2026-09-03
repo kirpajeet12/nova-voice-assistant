@@ -28,6 +28,7 @@ if not USE_OLLAMA:
 
 # Conversation memory (persists during session)
 history = []
+MAX_HISTORY = 40  # cap to prevent unbounded growth and sensitive-data accumulation
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
 
@@ -68,6 +69,9 @@ def think(user_input: str, skip_execute=None) -> str:
                 augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
+    # Trim oldest messages to stay within cap (keep pairs to avoid orphaned turns)
+    while len(history) > MAX_HISTORY:
+        history.pop(0)
 
     if USE_OLLAMA:
         messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
