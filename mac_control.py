@@ -178,7 +178,7 @@ end tell
         script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
         run_applescript(script)
         return
@@ -361,6 +361,20 @@ def sleep_mac():
 
 # ── TAG PARSER ───────────────────────────
 
+_ALL_TAGS_RE = re.compile(
+    r'\[(?:OPEN|URL|VOLUME|NOTIFY|RUN|TYPE|NOTE|DELETE_CALENDAR'
+    r'|SPOTIFY(?:_URI|_PAUSE|_NEXT|_PREV)?|MUTE|UNMUTE'
+    r'|READ_WHATSAPP|WHATSAPP|EMAIL|DRAFT_EMAIL|CALENDAR|REMINDER|TIMER)'
+    r'(?::[^\]]*)?\]',
+    re.IGNORECASE,
+)
+
+def _strip_control_tags(text: str) -> str:
+    """Remove control tags from externally-sourced text (WhatsApp, email bodies, etc.)
+    to prevent prompt-injection attacks where a received message triggers actions."""
+    return _ALL_TAGS_RE.sub('', text)
+
+
 def parse_and_execute(text: str) -> str:
     """
     Scan Claude's raw reply for control tags, execute each action,
@@ -441,6 +455,7 @@ def parse_and_execute(text: str) -> str:
         from communications import read_whatsapp_messages
         contact = m.group(1).strip()
         result = read_whatsapp_messages(contact)
+        result = _strip_control_tags(result)  # prevent tag injection from message content
         print(f"  [whatsapp read] {result}")
         return result
 
@@ -500,7 +515,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
