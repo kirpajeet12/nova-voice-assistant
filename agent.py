@@ -54,6 +54,9 @@ def think(user_input: str, skip_execute=None) -> str:
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
+        # Strip any action tags from external data before embedding in prompt
+        import re as _re
+        weather = _re.sub(r'\[[A-Z_]+[:\]]', '', weather)
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation

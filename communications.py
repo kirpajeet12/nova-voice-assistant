@@ -123,7 +123,7 @@ def send_whatsapp(contact: str, message: str):
     script = f'''
 tell application "WhatsApp" to activate
 delay 0.5
-open location "{url}"
+open location "{_s(url)}"
 delay 3
 tell application "System Events"
     key code 36
