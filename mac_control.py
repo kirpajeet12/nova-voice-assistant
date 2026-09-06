@@ -96,7 +96,8 @@ def _spotify_token() -> str:
             data={"grant_type": "client_credentials"}, timeout=8
         )
         return res.json().get("access_token", "")
-    except:
+    except Exception as e:
+        print(f"  [spotify] token fetch failed: {e}")
         return ""
 
 def search_spotify(query: str, limit: int = 3) -> list:
@@ -398,7 +399,13 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        script = m.group(1).strip()
+        # Block shell execution from AppleScript to prevent arbitrary code execution
+        _blocked = ("do shell script", "do script", "shell script")
+        if any(b in script.lower() for b in _blocked):
+            print(f"  [security] blocked dangerous [RUN:] containing shell execution")
+            return "[action blocked: shell execution not allowed]"
+        run_applescript(script)
         return ""
 
     def _type(m):

@@ -154,11 +154,17 @@ def run_setup(force: bool = False) -> dict:
     return cfg
 
 
+def _sanitize_prompt_field(value: str) -> str:
+    """Strip bracket-tag patterns that could override AI action tags."""
+    import re
+    return re.sub(r'\[[A-Z_]+[:\]]', '', value).strip()
+
+
 def build_system_prompt(cfg: dict) -> str:
     """Build the system prompt from user config."""
     name         = cfg.get("name", "Nova")
-    personality  = cfg.get("personality", "Casual, warm and helpful")
-    instructions = cfg.get("instructions", "")
+    personality  = _sanitize_prompt_field(cfg.get("personality", "Casual, warm and helpful"))
+    instructions = _sanitize_prompt_field(cfg.get("instructions", ""))
 
     extra = f"\n\nAdditional instructions: {instructions}" if instructions else ""
 
