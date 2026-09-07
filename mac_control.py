@@ -499,8 +499,13 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
+    _URI_RE = re.compile(r'^spotify:(track|album|playlist|artist):[A-Za-z0-9]{22}$')
+
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        if not _URI_RE.match(uri):
+            print(f"  [mac] rejected invalid Spotify URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
