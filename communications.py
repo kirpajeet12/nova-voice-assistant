@@ -12,7 +12,12 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace("'", "\\'")
+            .replace('\n', '\\n')
+            .replace('\r', '\\r'))
 
 
 def _run(script: str) -> dict:
