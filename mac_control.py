@@ -57,9 +57,17 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("https://", "http://")
+_BLOCKED_URL_SCHEMES = ("file://", "javascript:", "data:", "vbscript:", "ftp://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    url_lower = url.lower().strip()
+    # Block dangerous schemes before adding https
+    if any(url_lower.startswith(s) for s in _BLOCKED_URL_SCHEMES):
+        print(f"  [mac] blocked dangerous url scheme: {url}")
+        return {"ok": False, "error": "blocked scheme"}
+    if not url_lower.startswith(("http://", "https://")):
         url = "https://" + url
     return run_applescript(f'open location "{_s(url)}"')
 
@@ -398,7 +406,8 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] is disabled — executing arbitrary AppleScript from LLM output is an RCE risk
+        print(f"  [security] blocked [RUN:] tag: {m.group(1).strip()[:80]}")
         return ""
 
     def _type(m):

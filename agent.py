@@ -39,11 +39,24 @@ def _save_history():
 
 
 def load_history():
-    if os.path.exists(HISTORY_FILE):
+    if not os.path.exists(HISTORY_FILE):
+        return
+    try:
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        messages = data.get("messages", [])
+        # Validate: only accept well-formed role/content pairs, cap at 200 messages
+        valid = [
+            m for m in messages
+            if isinstance(m, dict)
+            and m.get("role") in ("user", "assistant")
+            and isinstance(m.get("content"), str)
+            and len(m["content"]) <= 32_000
+        ]
+        history.extend(valid[-200:])
         print(f"  [memory] loaded {len(history)} messages from previous session")
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"  [memory] could not load history: {e}")
 
 
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")

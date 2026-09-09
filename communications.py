@@ -117,8 +117,12 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe="")
+    # Sanitize phone: only digits and leading +
+    import re as _re_ph
+    phone_clean = '+' + _re_ph.sub(r'[^0-9]', '', phone.lstrip('+')) if phone.startswith('+') else _re_ph.sub(r'[^0-9]', '', phone)
+    url = f"whatsapp://send?phone={phone_clean}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
