@@ -42,19 +42,30 @@ def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        valid_roles = {"user", "assistant"}
+        for msg in data.get("messages", []):
+            if (isinstance(msg, dict)
+                    and msg.get("role") in valid_roles
+                    and isinstance(msg.get("content"), str)):
+                history.append({"role": msg["role"], "content": msg["content"]})
         print(f"  [memory] loaded {len(history)} messages from previous session")
 
 
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+def _sanitize_external(text: str) -> str:
+    """Strip action tag syntax from external data to prevent prompt injection."""
+    import re as _re
+    return _re.sub(r'\[([A-Z_]+:?[^\]]*)\]', '', text)
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        weather = _sanitize_external(get_weather())
+        augmented = f"{user_input}\n\n<external_data>Live weather: {weather}</external_data>"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
@@ -64,8 +75,12 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                safe_name   = _sanitize_external(t['name'])
+                safe_artist = _sanitize_external(t['artist'])
+                safe_uri    = t['uri'] if t['uri'].startswith("spotify:") else ""
+                if safe_uri:
+                    augmented += f"\n\n<external_data>Spotify result: '{safe_name}' by {safe_artist} — uri: {safe_uri}</external_data>"
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {safe_uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 

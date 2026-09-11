@@ -39,7 +39,12 @@ def _write_env(keys: dict):
     lines = []
     for k, v in keys.items():
         lines.append(f"{k}={v}")
-    ENV_FILE.write_text("\n".join(lines) + "\n")
+    content = "\n".join(lines) + "\n"
+    import stat
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    fd = os.open(str(ENV_FILE), flags, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(content)
 
 
 def _load_env() -> dict:
