@@ -12,7 +12,8 @@ from communications import send_whatsapp, send_email, draft_email, add_calendar_
 
 def get_weather(location: str = "") -> str:
     """Fetch current weather as plain text using wttr.in"""
-    loc = location.strip().replace(" ", "+") or ""
+    from urllib.parse import quote
+    loc = quote(location.strip(), safe="") if location.strip() else ""
     try:
         url = f"https://wttr.in/{loc}?format=3"
         r = _requests.get(url, timeout=8)
@@ -57,10 +58,16 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://", "spotify://", "whatsapp://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    # Block non-http(s) schemes that could run local code (file://, javascript:, applescript:)
+    if not url.lower().startswith(("http://", "https://")):
+        print(f"  [mac] blocked unsafe URL scheme: {url}")
+        return {"ok": False, "error": "unsafe URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,7 +405,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] executes arbitrary AppleScript — disabled to prevent code injection
+        # via prompt injection or a compromised LLM response.
+        print("  [mac] [RUN:] tag is disabled for security")
         return ""
 
     def _type(m):
@@ -501,10 +510,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow real Spotify URIs to prevent AppleScript injection
+        if not uri.startswith("spotify:"):
+            print(f"  [mac] blocked non-Spotify URI: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
