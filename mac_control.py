@@ -23,10 +23,24 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    # Escape backslashes first, then double-quotes and single-quotes
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
+
+_BLOCKED_APPLESCRIPT_PATTERNS = [
+    "do shell script",
+    "load script",
+    "run script",
+    "path to",
+]
 
 def run_applescript(script: str) -> dict:
+    # Block AppleScript constructs that allow arbitrary shell/file execution
+    script_lower = script.lower()
+    for pattern in _BLOCKED_APPLESCRIPT_PATTERNS:
+        if pattern in script_lower:
+            print(f"  [mac] blocked dangerous AppleScript pattern: {pattern!r}")
+            return {'ok': False, 'error': f'Blocked AppleScript pattern: {pattern}'}
     try:
         r = subprocess.run(
             ['osascript', '-e', script],
@@ -59,8 +73,14 @@ def quit_app(name: str):
 
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    # Block non-http(s) schemes that could execute code or read local files
+    from urllib.parse import urlparse
+    scheme = urlparse(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        print(f"  [mac] blocked unsafe URL scheme: {scheme}")
+        return {"ok": False, "error": f"Blocked unsafe URL scheme: {scheme}"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -397,10 +417,6 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
-    def _run(m):
-        run_applescript(m.group(1).strip())
-        return ""
-
     def _type(m):
         type_text(m.group(1).strip())
         return ""
@@ -497,7 +513,8 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
+    # [RUN:] tag removed — arbitrary AppleScript execution is a shell-injection risk
+    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          lambda m: "",   text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()

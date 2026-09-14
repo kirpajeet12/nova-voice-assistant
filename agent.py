@@ -49,11 +49,19 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+def _sanitize_external(text: str) -> str:
+    """Strip action tags from external API data to prevent prompt injection."""
+    import re
+    # Remove any content that looks like our action tags so external data
+    # can't inject commands (e.g. a malicious wttr.in or Spotify response)
+    return re.sub(r'\[[A-Z_]+[:\]].*?(?:\]|$)', '', text, flags=re.DOTALL).strip()
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _sanitize_external(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
@@ -64,8 +72,16 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Sanitize track metadata to prevent injection via malicious Spotify data
+                name = _sanitize_external(t['name'])
+                artist = _sanitize_external(t['artist'])
+                uri = t['uri']
+                # Validate URI is a proper spotify: URI
+                if not _re.match(r'^spotify:(track|album|playlist):[A-Za-z0-9]+$', uri):
+                    uri = ""
+                if uri:
+                    augmented += f"\n\n[Spotify search result: '{name}' by {artist} — uri: {uri}]"
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 

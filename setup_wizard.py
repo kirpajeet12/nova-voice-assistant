@@ -208,6 +208,8 @@ Calendar & Reminders:
 Notifications:
 [NOTIFY: Title|message]           — show Mac notification
 
+Note: [RUN:] is not supported. All Mac actions go through the specific tags above.
+
 ═══ EXAMPLES ═══
 
 "play blinding lights"        → Got it! [SPOTIFY: blinding lights]
