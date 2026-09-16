@@ -12,7 +12,12 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace("'", "\\'")
+            .replace('\n', '\\n')
+            .replace('\r', '\\r'))
 
 
 def _run(script: str) -> dict:
@@ -117,7 +122,8 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe='')
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
 
     script = f'''
@@ -372,6 +378,8 @@ def add_reminder(text: str, when: str = "today", time_str: str = "9am"):
 # ── TIMER ────────────────────────────────
 
 def set_timer(minutes: int):
+    if not (1 <= minutes <= 1440):
+        raise ValueError(f"Timer minutes must be between 1 and 1440, got {minutes}")
     print(f"  [timer] {minutes} min")
     import threading
     def _fire():

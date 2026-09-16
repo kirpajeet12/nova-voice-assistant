@@ -2,6 +2,7 @@
 #  Claude Agent — Brain + Voice Output
 # ─────────────────────────────────────────
 
+import re
 import requests
 import pygame
 import tempfile
@@ -51,21 +52,30 @@ _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
+    def _sanitize_external(text: str) -> str:
+        """Strip tag-like constructs from external API data to prevent prompt injection."""
+        return re.sub(r'[\[\]|]', '', text)
+
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        weather_clean = _sanitize_external(weather)
+        augmented = f"{user_input}\n\n<external_data>Live weather: {weather_clean}</external_data>"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
-        import re as _re
-        query = _re.sub(r'(play|song|music|spotify|track|listen|on|can you|please|the)', '', user_input, flags=_re.I).strip()
+        query = re.sub(r'(play|song|music|spotify|track|listen|on|can you|please|the)', '', user_input, flags=re.I).strip()
         if query:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                uri = t['uri']
+                # Only inject a URI that matches the expected Spotify scheme
+                if re.match(r'^spotify:(track|album|artist|playlist):[A-Za-z0-9]+$', uri):
+                    name_clean   = _sanitize_external(t['name'])
+                    artist_clean = _sanitize_external(t['artist'])
+                    augmented += f"\n\n<external_data>Spotify result: '{name_clean}' by {artist_clean} — uri: {uri}</external_data>"
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
