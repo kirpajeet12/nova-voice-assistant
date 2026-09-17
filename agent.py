@@ -38,12 +38,28 @@ def _save_history():
         json.dump(data, f, indent=2)
 
 
+_ALLOWED_ROLES = {"user", "assistant"}
+
 def load_history():
-    if os.path.exists(HISTORY_FILE):
+    if not os.path.exists(HISTORY_FILE):
+        return
+    try:
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        messages = data.get("messages", [])
+        sanitized = [
+            m for m in messages
+            if isinstance(m, dict)
+            and m.get("role") in _ALLOWED_ROLES
+            and isinstance(m.get("content"), str)
+        ]
+        history.extend(sanitized)
+        dropped = len(messages) - len(sanitized)
+        if dropped:
+            print(f"  [memory] WARNING: dropped {dropped} malformed entries from history")
         print(f"  [memory] loaded {len(history)} messages from previous session")
+    except Exception as e:
+        print(f"  [memory] could not load history: {e}")
 
 
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
