@@ -23,7 +23,7 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def run_applescript(script: str) -> dict:

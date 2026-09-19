@@ -2,6 +2,7 @@
 #  Claude Agent — Brain + Voice Output
 # ─────────────────────────────────────────
 
+import re
 import requests
 import pygame
 import tempfile
@@ -49,11 +50,20 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+# Max messages kept in history sent to the API to prevent token exhaustion
+_MAX_HISTORY = 40
+
+_TAG_RE = re.compile(r'\[[A-Z_]+[:\]]')
+
+def _strip_tags(text: str) -> str:
+    """Remove any action tags from external data before embedding in LLM context."""
+    return _TAG_RE.sub('', text)
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _strip_tags(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
@@ -64,10 +74,18 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Sanitize external track/artist names before embedding in LLM context
+                name   = _strip_tags(t['name'])
+                artist = _strip_tags(t['artist'])
+                uri    = t['uri']
+                augmented += f"\n\n[Spotify search result: '{name}' by {artist} — uri: {uri}]"
+                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
+
+    # Trim history to prevent unbounded token growth
+    if len(history) > _MAX_HISTORY:
+        del history[:-_MAX_HISTORY]
 
     if USE_OLLAMA:
         messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
