@@ -23,6 +23,8 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
+    # Strip null bytes first (AppleScript parser can behave unexpectedly with them)
+    text = text.replace('\0', '')
     return text.replace('\\', '\\\\').replace('"', '\\"')
 
 
@@ -61,6 +63,10 @@ def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Reject URLs that aren't http/https (e.g. file://, javascript:, data:)
+    if not url.startswith("https://") and not url.startswith("http://"):
+        print(f"  [security] rejected non-http URL: {url}")
+        return {"ok": False, "error": "Only http/https URLs are allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,7 +404,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] executes raw AppleScript — disabled to prevent arbitrary code execution
+        # via prompt injection from external data sources (weather, Spotify metadata, etc.)
+        print("  [security] [RUN:] tag is disabled")
         return ""
 
     def _type(m):

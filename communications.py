@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
+    text = text.replace('\0', '')
     return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
@@ -117,7 +118,8 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe='')
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
 
     script = f'''
