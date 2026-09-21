@@ -13,6 +13,9 @@ from agent import think, speak, load_history, ASSISTANT_NAME
 # Shared queue — both voice and text input feed into this
 _input_queue = queue.Queue()
 
+# Lock for _listening flag to prevent race conditions between voice and handler threads
+_listening_lock = threading.Lock()
+
 # ── Audio setup ───────────────────────────
 SAMPLE_RATE    = 16000
 CHUNK          = 1024
@@ -28,10 +31,19 @@ _model = whisper.load_model(WHISPER_MODEL)
 _pa    = pyaudio.PyAudio()
 print("Ready.")
 
-_listening = True   # pause mic while speaking
+_listening = True   # pause mic while speaking — always access via _set_listening/_is_listening
+
+def _set_listening(val: bool):
+    global _listening
+    with _listening_lock:
+        _listening = val
+
+def _is_listening() -> bool:
+    with _listening_lock:
+        return _listening
 
 def _record(duration: float) -> np.ndarray:
-    if not _listening:
+    if not _is_listening():
         return np.zeros(1)
     stream = _pa.open(format=pyaudio.paInt16, channels=1,
                       rate=SAMPLE_RATE, input=True,
@@ -84,7 +96,7 @@ def _preview(raw_reply: str) -> str:
     return " and ".join(parts) if parts else "do that"
 
 def handle(command: str, source: str = "voice"):
-    global _listening, _pending_action, awake, last_spoke
+    global _pending_action, awake, last_spoke
 
     if not command or len(command) < 3:
         return
@@ -104,10 +116,10 @@ def handle(command: str, source: str = "voice"):
             _save_contact(contact_name, phone)
             _pending_action = None
             result = send_whatsapp(contact_name, pending_msg)
-            _listening = False
+            _set_listening(False)
             speak(result if "NEED_PHONE" not in result else "Something went wrong.")
             time.sleep(1.5)
-            _listening = True
+            _set_listening(True)
             return
 
         if any(w in cmd_lower for w in CONFIRM_WORDS):
@@ -123,24 +135,24 @@ def handle(command: str, source: str = "voice"):
                 m = _re.search(r'\[WHATSAPP:\s*[^|]+\|([^\]]+)\]', raw_reply)
                 pending_msg = m.group(1).strip() if m else ""
                 _pending_action = {"type": "need_phone", "contact": contact_name, "message": pending_msg}
-                _listening = False
+                _set_listening(False)
                 speak(f"I don't have {contact_name}'s number. What is it?")
                 time.sleep(1.5)
-                _listening = True
+                _set_listening(True)
                 return
 
             spoken = clean if clean else "done!"
-            _listening = False
+            _set_listening(False)
             speak(spoken)
             time.sleep(1.5)
-            _listening = True
+            _set_listening(True)
         elif any(w in cmd_lower for w in CANCEL_WORDS):
             _pending_action = None
             print(f"  [cancelled]")
-            _listening = False
+            _set_listening(False)
             speak("got it, cancelled.")
             time.sleep(1.0)
-            _listening = True
+            _set_listening(True)
         else:
             # Not a yes/no — treat as new command, clear pending
             _pending_action = None
@@ -156,15 +168,15 @@ def handle(command: str, source: str = "voice"):
         _pending_action = (raw_reply, preview)
         confirm_msg = f"should I {preview}?"
         print(f"  [confirm?] {confirm_msg}")
-        _listening = False
+        _set_listening(False)
         speak(confirm_msg)
         time.sleep(1.5)
-        _listening = True
+        _set_listening(True)
     elif raw_reply:
-        _listening = False
+        _set_listening(False)
         speak(raw_reply)
         time.sleep(1.5)
-        _listening = True
+        _set_listening(True)
 
 # ── Text input thread ─────────────────────
 def _text_input_loop():
@@ -230,10 +242,10 @@ while True:
         continue
 
     if command == "__wake__":
-        _listening = False
+        _set_listening(False)
         speak("Yeah?")
         time.sleep(0.8)
-        _listening = True
+        _set_listening(True)
         awake = True
         last_spoke = time.time()
     else:

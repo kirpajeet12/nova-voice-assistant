@@ -25,7 +25,8 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -101,15 +102,30 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     description = data.get("description", "")
     result      = data.get("result", "")
 
+    # Validate action is one of the expected values
+    ALLOWED_ACTIONS = {"click", "double_click", "type", "scroll", "none"}
+    if action not in ALLOWED_ACTIONS:
+        print(f"  [vision] unexpected action '{action}' — ignoring")
+        return "Unexpected action from vision model."
+
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
-    if action == "click":
-        pyautogui.click(data["x"], data["y"])
-    elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+    screen_w, screen_h = pyautogui.size()
+
+    if action in ("click", "double_click"):
+        x = int(data.get("x", 0))
+        y = int(data.get("y", 0))
+        if not (0 <= x <= screen_w and 0 <= y <= screen_h):
+            print(f"  [vision] coordinates ({x},{y}) out of screen bounds — ignoring")
+            return "Coordinates out of bounds."
+        if action == "click":
+            pyautogui.click(x, y)
+        else:
+            pyautogui.doubleClick(x, y)
     elif action == "type":
-        pyautogui.typewrite(data.get("text", ""), interval=0.05)
+        text_to_type = str(data.get("text", ""))
+        pyautogui.typewrite(text_to_type, interval=0.05)
     elif action == "scroll":
         direction = 1 if data.get("scroll_direction") == "up" else -1
         pyautogui.scroll(direction * 3)
