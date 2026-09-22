@@ -1,8 +1,9 @@
-anthropic
-elevenlabs
-openai-whisper
-pyaudio
-numpy
-requests
-pygame
-python-dotenv
+anthropic>=0.40.0,<1.0.0
+elevenlabs>=1.0.0,<2.0.0
+openai-whisper>=20231117
+pyaudio>=0.2.14
+numpy>=1.26.0,<3.0.0
+requests>=2.32.0,<3.0.0
+pygame>=2.5.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
+pyautogui>=0.9.54,<1.0.0

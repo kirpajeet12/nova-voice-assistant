@@ -174,13 +174,17 @@ end tell
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
     if uri:
-        # Use open location to navigate directly to the track — more reliable than play track AppleScript
-        script = f'''
+        # Validate URI matches expected Spotify format before embedding in AppleScript
+        import re as _re
+        if not _re.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [spotify] invalid URI format, skipping: {uri}")
+        else:
+            script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
-        run_applescript(script)
+            run_applescript(script)
         return
 
     # Keyboard-only fallback: search → full results → Tab to Best Result → Enter
@@ -371,7 +375,6 @@ def parse_and_execute(text: str) -> str:
         [URL: https://...]
         [VOLUME: 50]
         [NOTIFY: Title|message]
-        [RUN: applescript code]
         [TYPE: text to type]
     """
 
@@ -395,10 +398,6 @@ def parse_and_execute(text: str) -> str:
         title = parts[0].strip()
         msg   = parts[1].strip() if len(parts) > 1 else ""
         show_notification(title, msg)
-        return ""
-
-    def _run(m):
-        run_applescript(m.group(1).strip())
         return ""
 
     def _type(m):
@@ -497,14 +496,18 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
+    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          lambda m: "",   text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        import re as _re2
+        if not _re2.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [spotify] invalid URI format in tag, skipping: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
