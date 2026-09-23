@@ -65,7 +65,7 @@ def _needs_confirmation(text: str) -> bool:
     """Check if agent reply contains a sensitive tag that needs confirmation."""
     if "[READ_WHATSAPP:" in text:
         return False   # reading never needs confirmation
-    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:"]
+    sensitive = ["[WHATSAPP:", "[EMAIL:", "[DRAFT_EMAIL:", "[TYPE:", "[RUN:"]
     return any(tag in text for tag in sensitive)
 
 def _preview(raw_reply: str) -> str:

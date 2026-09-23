@@ -178,7 +178,7 @@ end tell
         script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
         run_applescript(script)
         return
@@ -398,7 +398,8 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] tag disabled — arbitrary AppleScript execution is a critical injection vector
+        print(f"  [security] [RUN:] tag blocked: {m.group(1).strip()[:80]}")
         return ""
 
     def _type(m):
@@ -504,7 +505,7 @@ def parse_and_execute(text: str) -> str:
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
