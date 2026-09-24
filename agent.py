@@ -54,7 +54,8 @@ def think(user_input: str, skip_execute=None) -> str:
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        # Wrap in XML-like delimiters so the LLM treats this as data, not instructions
+        augmented = f"{user_input}\n\n<external_data source=\"weather\">{weather}</external_data>"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
@@ -64,8 +65,13 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Wrap track metadata as data to prevent prompt injection from crafted track names
+                augmented += (
+                    f"\n\n<external_data source=\"spotify\">"
+                    f"Track: {t['name']} | Artist: {t['artist']} | URI: {t['uri']}"
+                    f"</external_data>"
+                    f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                )
 
     history.append({"role": "user", "content": augmented})
 

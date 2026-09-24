@@ -182,6 +182,8 @@ Apps & Web:
 Notes:
 [NOTE: text content]              — create and save a note in Notes app
 
+
+
 Media:
 [SPOTIFY: song or artist]         — search and play on Spotify
 [SPOTIFY_PAUSE]                   — pause
