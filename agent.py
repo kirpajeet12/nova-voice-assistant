@@ -33,16 +33,19 @@ HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.jso
 
 
 def _save_history():
-    data = {"updated": datetime.now().isoformat(), "messages": history}
+    data = {"updated": datetime.now().isoformat(), "messages": history[-MAX_HISTORY:]}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
+
+MAX_HISTORY = 200  # prevent context window overflow and memory bloat
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE) as f:
             data = json.load(f)
-        history.extend(data.get("messages", []))
+        messages = data.get("messages", [])[-MAX_HISTORY:]
+        history.extend(messages)
         print(f"  [memory] loaded {len(history)} messages from previous session")
 
 
