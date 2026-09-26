@@ -99,8 +99,15 @@ def handle(command: str, source: str = "voice"):
         if isinstance(raw_reply, dict) and raw_reply.get("type") == "need_phone":
             contact_name = raw_reply["contact"]
             pending_msg  = raw_reply["message"]
-            from communications import _save_contact, send_whatsapp
+            from communications import _save_contact, _validate_phone, send_whatsapp
             phone = command.strip().replace(" ", "")
+            if not _validate_phone(phone):
+                _pending_action = None
+                _listening = False
+                speak("That doesn't look like a valid phone number, sorry.")
+                time.sleep(1.0)
+                _listening = True
+                return
             _save_contact(contact_name, phone)
             _pending_action = None
             result = send_whatsapp(contact_name, pending_msg)
