@@ -116,9 +116,16 @@ def send_whatsapp(contact: str, message: str):
         print(f"  [whatsapp] contact '{contact}' not found in contacts.json")
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
+    # Validate phone number — only digits, +, -, spaces allowed to prevent URL injection
+    phone_clean = re.sub(r'[^\d\+\-\s]', '', phone).strip()
+    if not phone_clean or not re.match(r'^\+?\d[\d\-\s]{6,}$', phone_clean):
+        print(f"  [whatsapp] invalid phone number format: {phone}")
+        return "Invalid phone number format."
+
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe='')
+    url = f"whatsapp://send?phone={quote(phone_clean, safe='+')}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate

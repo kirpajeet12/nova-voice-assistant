@@ -61,6 +61,10 @@ def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    # Only allow http/https URLs to prevent javascript: or applescript: injection
+    if not url.startswith(("http://", "https://")):
+        print(f"  [mac] blocked non-http URL: {url}")
+        return {"ok": False, "error": "Only http/https URLs are allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -174,14 +178,19 @@ end tell
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
     if uri:
-        # Use open location to navigate directly to the track — more reliable than play track AppleScript
-        script = f'''
+        # Validate URI is a legitimate Spotify URI before embedding in AppleScript
+        import re as _re2
+        if not _re2.match(r'^spotify:[a-zA-Z0-9:]+$', uri):
+            print(f"  [spotify] blocked invalid URI: {uri}")
+            uri = ""
+        else:
+            script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
-        run_applescript(script)
-        return
+            run_applescript(script)
+            return
 
     # Keyboard-only fallback: search → full results → Tab to Best Result → Enter
     song_safe = _s(song)
@@ -397,10 +406,6 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
-    def _run(m):
-        run_applescript(m.group(1).strip())
-        return ""
-
     def _type(m):
         type_text(m.group(1).strip())
         return ""
@@ -497,14 +502,18 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
+    # [RUN:] tag removed — arbitrary AppleScript execution is a remote code execution risk
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Validate URI is a legitimate Spotify URI before embedding in AppleScript
+        if not re.match(r'^spotify:[a-zA-Z0-9:]+$', uri):
+            print(f"  [spotify] blocked invalid URI: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
