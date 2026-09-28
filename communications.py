@@ -9,6 +9,7 @@ import re
 import os
 import json
 from datetime import datetime, timedelta
+from urllib.parse import quote as _urlquote
 
 
 def _s(text: str) -> str:
@@ -116,9 +117,13 @@ def send_whatsapp(contact: str, message: str):
         print(f"  [whatsapp] contact '{contact}' not found in contacts.json")
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
+    # Validate phone: digits and leading + only
+    if not re.match(r'^\+?[0-9]{7,15}$', phone):
+        print(f"  [whatsapp] invalid phone number format: {phone}")
+        return "Couldn't send — invalid phone number."
+
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    url = f"whatsapp://send?phone={_urlquote(phone, safe='+')}&text={_urlquote(message)}"
 
     script = f'''
 tell application "WhatsApp" to activate

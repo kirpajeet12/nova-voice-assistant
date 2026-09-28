@@ -398,7 +398,12 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        script = m.group(1).strip()
+        # Block shell escalation — do shell script allows arbitrary OS commands
+        if re.search(r'\bdo\s+shell\s+script\b', script, re.IGNORECASE):
+            print("  [security] blocked [RUN:] containing 'do shell script'")
+            return ""
+        run_applescript(script)
         return ""
 
     def _type(m):
@@ -501,10 +506,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow well-formed spotify: URIs
+        if not re.match(r'^spotify:[a-zA-Z0-9:]+$', uri):
+            print(f"  [security] blocked invalid Spotify URI: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
