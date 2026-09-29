@@ -57,10 +57,16 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("https://", "http://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    if not any(url.startswith(s) for s in _ALLOWED_URL_SCHEMES):
         url = "https://" + url
+    # Block non-http(s) schemes that may have slipped through (e.g. javascript:, file://)
+    if not any(url.startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked non-http url: {url}")
+        return {"ok": False, "error": "Only http/https URLs are allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,7 +404,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] is disabled — it allows arbitrary AppleScript execution via LLM output,
+        # creating a full remote-code-execution surface via prompt injection.
+        print(f"  [mac] [RUN:] tag blocked for security")
         return ""
 
     def _type(m):
@@ -501,10 +509,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow legitimate Spotify URIs to prevent URL/AppleScript injection
+        if not re.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [mac] blocked invalid spotify uri: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
