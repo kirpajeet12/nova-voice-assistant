@@ -2,6 +2,7 @@
 #  Claude Agent — Brain + Voice Output
 # ─────────────────────────────────────────
 
+import re
 import requests
 import pygame
 import tempfile
@@ -49,23 +50,43 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+# Matches any control tag the assistant can execute — used to sanitize untrusted API data
+_CONTROL_TAG_RE = re.compile(
+    r'\[(?:RUN|OPEN|URL|VOLUME|NOTIFY|TYPE|WHATSAPP|EMAIL|DRAFT_EMAIL|CALENDAR|REMINDER|TIMER'
+    r'|NOTE|DELETE_CALENDAR|SPOTIFY(?:_URI|_PAUSE|_NEXT|_PREV)?|MUTE|UNMUTE|READ_WHATSAPP)'
+    r':[^\]]*\]',
+    re.IGNORECASE,
+)
+# Spotify URIs must match the official format: spotify:<type>:<base62-id>
+_SPOTIFY_URI_RE = re.compile(r'^spotify:[a-z]+:[A-Za-z0-9]{22}$')
+
+
+def _sanitize_external(text: str) -> str:
+    """Strip control tags from untrusted external data before injecting into LLM prompts."""
+    return _CONTROL_TAG_RE.sub('', str(text))
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _sanitize_external(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
-        import re as _re
-        query = _re.sub(r'(play|song|music|spotify|track|listen|on|can you|please|the)', '', user_input, flags=_re.I).strip()
+        query = re.sub(r'(play|song|music|spotify|track|listen|on|can you|please|the)', '', user_input, flags=re.I).strip()
         if query:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                safe_name   = _sanitize_external(t['name'])
+                safe_artist = _sanitize_external(t['artist'])
+                # Only pass the URI if it matches the official spotify:<type>:<id> format
+                raw_uri  = t.get('uri', '')
+                safe_uri = raw_uri if _SPOTIFY_URI_RE.match(raw_uri) else ''
+                augmented += f"\n\n[Spotify search result: '{safe_name}' by {safe_artist} — uri: {safe_uri}]"
+                if safe_uri:
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {safe_uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
