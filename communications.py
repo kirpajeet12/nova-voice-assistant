@@ -117,7 +117,8 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe="")
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
 
     script = f'''
@@ -221,6 +222,12 @@ end tell
 
     if not msgs:
         return f"Couldn't extract message text from {contact}'s chat — WhatsApp may not expose it via accessibility."
+
+    # Sanitize: strip action tags to prevent prompt injection from message content
+    import re as _re
+    tag_pattern = _re.compile(r'\[[A-Z_]+:?[^\]]*\]')
+    msgs = [tag_pattern.sub('', m).strip() for m in msgs]
+    msgs = [m for m in msgs if m]
 
     # Return last few meaningful lines
     last = msgs[-3:] if len(msgs) >= 3 else msgs

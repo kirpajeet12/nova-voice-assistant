@@ -21,9 +21,11 @@ def get_weather(location: str = "") -> str:
         return f"Weather fetch failed: {e}"
 
 
+_ALLOWED_URL_SCHEMES = ("https://", "http://", "spotify:", "whatsapp://")
+
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def run_applescript(script: str) -> dict:
@@ -61,6 +63,9 @@ def open_url(url: str):
     print(f"  [mac] opening url: {url}")
     if not url.startswith("http"):
         url = "https://" + url
+    if not any(url.startswith(scheme) for scheme in _ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked disallowed URL scheme: {url}")
+        return {"ok": False, "error": "URL scheme not allowed"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
