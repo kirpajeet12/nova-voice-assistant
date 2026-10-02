@@ -40,6 +40,7 @@ def _write_env(keys: dict):
     for k, v in keys.items():
         lines.append(f"{k}={v}")
     ENV_FILE.write_text("\n".join(lines) + "\n")
+    os.chmod(ENV_FILE, 0o600)
 
 
 def _load_env() -> dict:
@@ -191,7 +192,7 @@ Media:
 [MUTE]  [UNMUTE]
 
 Typing:
-[TYPE: text to type]              — type text into any focused app
+[TYPE: text to type]              — type text into any focused app (use sparingly)
 
 Messaging:
 [READ_WHATSAPP: contact]          — read last message FROM a contact
