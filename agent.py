@@ -32,7 +32,12 @@ history = []
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
 
 
+MAX_HISTORY = 40  # keep last 40 messages to bound token usage and memory
+
 def _save_history():
+    # Trim in-memory history before saving
+    if len(history) > MAX_HISTORY:
+        del history[: len(history) - MAX_HISTORY]
     data = {"updated": datetime.now().isoformat(), "messages": history}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
