@@ -23,7 +23,13 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    # Newlines must be removed — a bare newline inside a double-quoted AppleScript
+    # string terminates the literal and lets the remainder be parsed as code.
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\n', ' ')
+            .replace('\r', ' '))
 
 
 def run_applescript(script: str) -> dict:
@@ -398,6 +404,11 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
+        # SECURITY: [RUN:] executes arbitrary AppleScript. Prompt-injection via
+        # untrusted external data (Spotify metadata, weather, etc.) reaching the
+        # LLM context could cause this tag to be generated with malicious code.
+        # Avoid passing external data directly into the LLM prompt, and consider
+        # removing this tag or restricting it to a fixed allow-list of scripts.
         run_applescript(m.group(1).strip())
         return ""
 
