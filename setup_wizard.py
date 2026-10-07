@@ -61,6 +61,7 @@ def _load_config() -> dict:
 
 def _save_config(cfg: dict):
     CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
+    CONFIG_FILE.chmod(0o600)
 
 
 def run_setup(force: bool = False) -> dict:
