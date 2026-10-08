@@ -30,9 +30,13 @@ if not USE_OLLAMA:
 history = []
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.json")
+MAX_HISTORY  = 100  # cap to prevent unbounded growth and context overflow
 
 
 def _save_history():
+    # Keep only the most recent MAX_HISTORY messages before saving
+    if len(history) > MAX_HISTORY:
+        del history[:len(history) - MAX_HISTORY]
     data = {"updated": datetime.now().isoformat(), "messages": history}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
