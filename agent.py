@@ -2,6 +2,7 @@
 #  Claude Agent — Brain + Voice Output
 # ─────────────────────────────────────────
 
+import re
 import requests
 import pygame
 import tempfile
@@ -33,7 +34,9 @@ HISTORY_FILE = os.path.join(os.path.dirname(__file__), "conversation_history.jso
 
 
 def _save_history():
-    data = {"updated": datetime.now().isoformat(), "messages": history}
+    # Trim to the most recent _MAX_HISTORY messages to prevent unbounded growth
+    trimmed = history[-_MAX_HISTORY:]
+    data = {"updated": datetime.now().isoformat(), "messages": trimmed}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
@@ -49,11 +52,23 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+# Maximum number of messages to persist in history (prevents unbounded growth)
+_MAX_HISTORY = 100
+
+# Tag-like patterns in external data that could trigger unintended actions
+_TAG_RE = re.compile(r'\[(?:RUN|OPEN|URL|VOLUME|NOTIFY|TYPE|SPOTIFY|WHATSAPP|EMAIL|CALENDAR|REMINDER|TIMER)[^\]]*\]', re.IGNORECASE)
+
+
+def _sanitize_external(text: str) -> str:
+    """Strip action tags from externally-fetched data before embedding in the LLM prompt."""
+    return _TAG_RE.sub('', text)
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _sanitize_external(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
@@ -64,8 +79,13 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Sanitize track metadata from Spotify before embedding in prompt
+                name = _sanitize_external(t['name'])
+                artist = _sanitize_external(t['artist'])
+                uri = t['uri']  # Spotify URIs are structured strings; strip tags only
+                uri = _sanitize_external(uri)
+                augmented += f"\n\n[Spotify search result: '{name}' by {artist} — uri: {uri}]"
+                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 

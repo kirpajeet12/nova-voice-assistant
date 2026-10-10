@@ -380,7 +380,11 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _url(m):
-        open_url(m.group(1).strip())
+        url = m.group(1).strip()
+        if not re.match(r'^https?://', url, re.IGNORECASE):
+            print(f"  [security] [URL:] blocked — non-http(s) URL: {url!r}")
+            return ""
+        open_url(url)
         return ""
 
     def _volume(m):
@@ -397,8 +401,23 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
+    # [RUN:] executes arbitrary AppleScript from LLM output.
+    # Only permit a narrow allowlist of patterns to reduce prompt-injection risk.
+    _RUN_ALLOWLIST = re.compile(
+        r'^(tell application "[A-Za-z ]+"|open location "spotify:[a-z:0-9A-Z]+"'
+        r'|set volume (output volume \d+|(with|without) output muted)'
+        r'|display (notification|alert) ".{0,200}"'
+        r'|tell application "System Events" to keystroke (space|return|tab)|'
+        r'tell application "Finder" to (open home|open trash))$',
+        re.IGNORECASE
+    )
+
     def _run(m):
-        run_applescript(m.group(1).strip())
+        code = m.group(1).strip()
+        if _RUN_ALLOWLIST.match(code):
+            run_applescript(code)
+        else:
+            print(f"  [security] [RUN:] blocked — pattern not in allowlist: {code[:80]!r}")
         return ""
 
     def _type(m):
@@ -499,8 +518,13 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
+    _VALID_SPOTIFY_URI = re.compile(r'^spotify:[a-z]+:[A-Za-z0-9]+$')
+
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        if not _VALID_SPOTIFY_URI.match(uri):
+            print(f"  [security] [SPOTIFY_URI:] blocked — malformed URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
