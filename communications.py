@@ -12,7 +12,12 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    # Strip newlines first: they break out of AppleScript string literals.
+    return (text.replace('\\', '\\\\')
+                .replace('"', '\\"')
+                .replace("'", "\\'")
+                .replace('\n', ' ')
+                .replace('\r', ' '))
 
 
 def _run(script: str) -> dict:
