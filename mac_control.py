@@ -57,9 +57,15 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_BLOCKED_SCHEMES = ("javascript:", "file:", "data:", "applescript:", "vbscript:")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    url_lower = url.lower().strip()
+    if any(url_lower.startswith(s) for s in _BLOCKED_SCHEMES):
+        print(f"  [mac] blocked dangerous URL scheme: {url[:60]}")
+        return {"ok": False, "error": "Blocked URL scheme"}
+    if not url_lower.startswith("http"):
         url = "https://" + url
     return run_applescript(f'open location "{_s(url)}"')
 
@@ -173,12 +179,12 @@ end tell
 
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
-    if uri:
+    if uri and uri.startswith("spotify:"):
         # Use open location to navigate directly to the track — more reliable than play track AppleScript
         script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
         run_applescript(script)
         return
@@ -397,8 +403,15 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
+    _DANGEROUS_APPLESCRIPT = ("do shell script", "do script", "open for access", "write to")
+
     def _run(m):
-        run_applescript(m.group(1).strip())
+        script = m.group(1).strip()
+        script_lower = script.lower()
+        if any(danger in script_lower for danger in _DANGEROUS_APPLESCRIPT):
+            print(f"  [mac] blocked dangerous AppleScript in [RUN:] tag")
+            return ""
+        run_applescript(script)
         return ""
 
     def _type(m):
@@ -501,10 +514,13 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        if not uri.startswith("spotify:"):
+            print(f"  [mac] blocked non-spotify URI: {uri[:60]}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 

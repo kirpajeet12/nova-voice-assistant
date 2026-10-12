@@ -117,8 +117,10 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    from urllib.parse import quote
+    safe_phone = re.sub(r'[^0-9+]', '', phone)
+    encoded_msg = quote(message, safe='')
+    url = f"whatsapp://send?phone={safe_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
@@ -372,6 +374,7 @@ def add_reminder(text: str, when: str = "today", time_str: str = "9am"):
 # ── TIMER ────────────────────────────────
 
 def set_timer(minutes: int):
+    minutes = max(1, min(1440, int(minutes)))  # clamp to 1 min – 24 hours
     print(f"  [timer] {minutes} min")
     import threading
     def _fire():
