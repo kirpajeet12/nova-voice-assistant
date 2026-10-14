@@ -25,7 +25,8 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -104,9 +105,9 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
-    if action == "click":
+    if action == "click" and "x" in data and "y" in data:
         pyautogui.click(data["x"], data["y"])
-    elif action == "double_click":
+    elif action == "double_click" and "x" in data and "y" in data:
         pyautogui.doubleClick(data["x"], data["y"])
     elif action == "type":
         pyautogui.typewrite(data.get("text", ""), interval=0.05)

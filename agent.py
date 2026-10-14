@@ -54,7 +54,9 @@ def think(user_input: str, skip_execute=None) -> str:
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        # Truncate to prevent prompt injection via a malicious weather response
+        weather_safe = weather[:200].replace('[', '(').replace(']', ')')
+        augmented = f"{user_input}\n\n[Live weather data: {weather_safe}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
