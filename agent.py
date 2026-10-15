@@ -54,7 +54,12 @@ def think(user_input: str, skip_execute=None) -> str:
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        # Wrap external data in a clear delimiter so an injected prompt in the
+        # weather response cannot blend into the user instruction.
+        augmented = (
+            f"{user_input}\n\n"
+            f"<external_data source=\"wttr.in\">{weather}</external_data>"
+        )
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):

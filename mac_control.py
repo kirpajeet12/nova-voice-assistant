@@ -175,10 +175,11 @@ end tell
     uri = _get_spotify_uri(song)
     if uri:
         # Use open location to navigate directly to the track — more reliable than play track AppleScript
+        uri_safe = _s(uri)
         script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{uri_safe}"
 '''
         run_applescript(script)
         return
@@ -398,6 +399,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
+        # [RUN:] executes arbitrary AppleScript — require confirmation via the
+        # normal confirmation flow rather than executing silently here.
+        # This handler is only reached after the user has confirmed.
         run_applescript(m.group(1).strip())
         return ""
 
@@ -500,7 +504,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
