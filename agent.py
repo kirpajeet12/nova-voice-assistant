@@ -54,7 +54,8 @@ def think(user_input: str, skip_execute=None) -> str:
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
         weather = get_weather()
-        augmented = f"{user_input}\n\n[Live weather data: {weather}]"
+        # Wrap in a data block so the content cannot inject action tags
+        augmented = f"{user_input}\n\n<weather_data>{weather}</weather_data>"
 
     # Spotify search — find top result via API and play directly, no confirmation
     if any(w in user_input.lower() for w in _SPOTIFY_WORDS):
@@ -64,8 +65,13 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                # Sanitize track metadata to prevent prompt injection via crafted track names
+                safe_name   = t['name'].replace('<', '').replace('>', '').replace('[', '(').replace(']', ')')
+                safe_artist = t['artist'].replace('<', '').replace('>', '').replace('[', '(').replace(']', ')')
+                safe_uri    = t['uri'] if t['uri'].startswith("spotify:") else ""
+                if safe_uri:
+                    augmented += f"\n\n<spotify_result>Track: '{safe_name}' by {safe_artist} — uri: {safe_uri}</spotify_result>"
+                    augmented += f"\nPlay it immediately using [SPOTIFY_URI: {safe_uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
