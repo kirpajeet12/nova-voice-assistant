@@ -51,6 +51,10 @@ def _load_contacts() -> dict:
     return {}
 
 def _save_contact(name: str, phone: str):
+    # Validate phone: allow only digits, +, spaces, dashes, parens
+    if not re.match(r'^[\d\+\s\-\(\)]{7,20}$', phone.strip()):
+        print(f"  [contacts] rejected invalid phone number for {name}: {phone!r}")
+        return
     contacts = _load_contacts()
     contacts[name.lower()] = phone
     with open(CONTACTS_FILE, "w") as f:
@@ -117,13 +121,15 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe='')
+    encoded_phone = quote(phone, safe='+')
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate
 delay 0.5
-open location "{url}"
+open location "{_s(url)}"
 delay 3
 tell application "System Events"
     key code 36
