@@ -49,11 +49,19 @@ def load_history():
 _WEATHER_WORDS = ("weather", "temperature", "forecast", "hot", "cold", "raining", "sunny", "humid")
 _SPOTIFY_WORDS = ("play", "song", "music", "spotify", "track", "listen")
 
+import re as _re_tags
+_ACTION_TAG_RE = _re_tags.compile(r'\[(OPEN|URL|VOLUME|NOTIFY|RUN|TYPE|NOTE|DELETE_CALENDAR|SPOTIFY(?:_URI|_PAUSE|_NEXT|_PREV)?|MUTE|UNMUTE|READ_WHATSAPP|WHATSAPP|EMAIL|DRAFT_EMAIL|CALENDAR|REMINDER|TIMER):[^\]]*\]', _re_tags.IGNORECASE)
+
+def _strip_action_tags(text: str) -> str:
+    """Remove action tags from external data to prevent prompt injection."""
+    return _ACTION_TAG_RE.sub('', text)
+
+
 def think(user_input: str, skip_execute=None) -> str:
     """Send user message to LLM, return response text + execute Mac actions."""
     augmented = user_input
     if any(w in user_input.lower() for w in _WEATHER_WORDS):
-        weather = get_weather()
+        weather = _strip_action_tags(get_weather())
         augmented = f"{user_input}\n\n[Live weather data: {weather}]"
 
     # Spotify search — find top result via API and play directly, no confirmation
@@ -64,8 +72,11 @@ def think(user_input: str, skip_execute=None) -> str:
             results = search_spotify(query, limit=1)
             if results:
                 t = results[0]
-                augmented += f"\n\n[Spotify search result: '{t['name']}' by {t['artist']} — uri: {t['uri']}]"
-                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {t['uri']}]. Do NOT ask for confirmation."
+                safe_name   = _strip_action_tags(t['name'])
+                safe_artist = _strip_action_tags(t['artist'])
+                safe_uri    = _strip_action_tags(t['uri'])
+                augmented += f"\n\n[Spotify search result: '{safe_name}' by {safe_artist} — uri: {safe_uri}]"
+                augmented += f"\nPlay it immediately using [SPOTIFY_URI: {safe_uri}]. Do NOT ask for confirmation."
 
     history.append({"role": "user", "content": augmented})
 
