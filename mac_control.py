@@ -398,7 +398,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] executes arbitrary AppleScript from LLM output — high RCE risk.
+        # Disabled: use specific action tags instead of open-ended script execution.
+        print("  [mac] [RUN:] tag is disabled for security reasons")
         return ""
 
     def _type(m):
@@ -501,10 +503,14 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Validate URI is a spotify: scheme before interpolating into AppleScript
+        if not uri.startswith("spotify:"):
+            print(f"  [mac] rejected non-spotify URI: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
