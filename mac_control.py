@@ -23,7 +23,7 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def run_applescript(script: str) -> dict:
@@ -174,13 +174,16 @@ end tell
     # Try Spotify API first (if keys are configured)
     uri = _get_spotify_uri(song)
     if uri:
-        # Use open location to navigate directly to the track — more reliable than play track AppleScript
-        script = f'''
+        import re as _re3
+        if _re3.match(r'^spotify:[a-zA-Z0-9:_-]+$', uri):
+            script = f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 '''
-        run_applescript(script)
+            run_applescript(script)
+        else:
+            print(f"  [spotify] rejected invalid URI: {uri!r}")
         return
 
     # Keyboard-only fallback: search → full results → Tab to Best Result → Enter
@@ -398,8 +401,12 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
-        return ""
+        # [RUN:] executes arbitrary AppleScript — require explicit user opt-in per session.
+        # This tag is intentionally disabled to prevent arbitrary code execution via
+        # prompt injection or LLM hallucination. Remove this guard only if you fully
+        # trust every string the LLM can emit.
+        print("  [mac] [RUN:] tag blocked — arbitrary AppleScript execution is disabled for safety")
+        return "[action blocked]"
 
     def _type(m):
         type_text(m.group(1).strip())
@@ -501,10 +508,15 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Validate Spotify URI format before embedding in AppleScript
+        import re as _re2
+        if not _re2.match(r'^spotify:[a-zA-Z0-9:_-]+$', uri):
+            print(f"  [mac] rejected invalid Spotify URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
