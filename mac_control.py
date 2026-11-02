@@ -397,10 +397,6 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
-    def _run(m):
-        run_applescript(m.group(1).strip())
-        return ""
-
     def _type(m):
         type_text(m.group(1).strip())
         return ""
@@ -497,14 +493,19 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
+
+    _SPOTIFY_URI_RE = re.compile(r'^spotify:[a-z]+:[A-Za-z0-9]+$')
+
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        if not _SPOTIFY_URI_RE.match(uri):
+            print(f"  [security] rejected invalid SPOTIFY_URI: {uri!r}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
