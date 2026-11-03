@@ -12,7 +12,8 @@ from communications import send_whatsapp, send_email, draft_email, add_calendar_
 
 def get_weather(location: str = "") -> str:
     """Fetch current weather as plain text using wttr.in"""
-    loc = location.strip().replace(" ", "+") or ""
+    import urllib.parse
+    loc = urllib.parse.quote(location.strip(), safe="") if location.strip() else ""
     try:
         url = f"https://wttr.in/{loc}?format=3"
         r = _requests.get(url, timeout=8)
@@ -23,7 +24,14 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    # Escape backslashes first, then quotes, then strip newlines/carriage returns
+    # that could inject new AppleScript statements
+    return (
+        text.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\r', ' ')
+            .replace('\n', ' ')
+    )
 
 
 def run_applescript(script: str) -> dict:
@@ -398,6 +406,9 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
+        # WARNING: [RUN:] executes arbitrary AppleScript. The LLM model and the
+        # system prompt both govern what the assistant emits; disable this tag
+        # in build_system_prompt if you want to remove this capability entirely.
         run_applescript(m.group(1).strip())
         return ""
 

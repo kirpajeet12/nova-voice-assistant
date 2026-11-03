@@ -12,7 +12,15 @@ from datetime import datetime, timedelta
 
 
 def _s(text: str) -> str:
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+    # Escape backslashes first, then quotes, then strip newlines/carriage returns
+    # that could inject new AppleScript statements
+    return (
+        text.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace("'", "\\'")
+            .replace('\r', ' ')
+            .replace('\n', ' ')
+    )
 
 
 def _run(script: str) -> dict:
@@ -117,13 +125,20 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+    import urllib.parse
+    encoded_msg = urllib.parse.quote(message, safe="")
+    # Validate phone: only digits, +, spaces, dashes allowed
+    import re as _re2
+    if not _re2.match(r'^[+\d\s\-]+$', phone):
+        return "Couldn't send: invalid phone number format."
     url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    # Sanitize the full URL for AppleScript embedding
+    url_safe = _s(url)
 
     script = f'''
 tell application "WhatsApp" to activate
 delay 0.5
-open location "{url}"
+open location "{url_safe}"
 delay 3
 tell application "System Events"
     key code 36
