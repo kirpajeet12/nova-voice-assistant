@@ -397,8 +397,19 @@ def parse_and_execute(text: str) -> str:
         show_notification(title, msg)
         return ""
 
+    _BLOCKED_RUN_PATTERNS = re.compile(
+        r'do\s+shell\s+script|load\s+script|run\s+script|'
+        r'open\s+for\s+access|write\s+to|set\s+eof|'
+        r'do\s+applescript',
+        re.IGNORECASE,
+    )
+
     def _run(m):
-        run_applescript(m.group(1).strip())
+        script = m.group(1).strip()
+        if _BLOCKED_RUN_PATTERNS.search(script):
+            print(f"  [mac] [RUN] blocked dangerous AppleScript: {script[:60]}")
+            return ""
+        run_applescript(script)
         return ""
 
     def _type(m):
@@ -500,7 +511,7 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
-        uri = m.group(1).strip()
+        uri = _s(m.group(1).strip())
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
