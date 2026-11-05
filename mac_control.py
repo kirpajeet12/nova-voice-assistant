@@ -23,7 +23,11 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\n', '\\n')
+            .replace('\r', ''))
 
 
 def run_applescript(script: str) -> dict:
@@ -398,7 +402,21 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] executes arbitrary AppleScript — only allow safe, pre-approved patterns.
+        # This tag is intentionally disabled; remove this guard only for trusted local use.
+        script = m.group(1).strip()
+        _ALLOWED_RUN_PREFIXES = (
+            'tell application "Finder"',
+            'tell application "System Events"',
+            'display notification',
+            'set volume',
+            'tell application "Calendar"',
+            'tell application "Reminders"',
+        )
+        if not any(script.startswith(p) for p in _ALLOWED_RUN_PREFIXES):
+            print(f"  [security] blocked [RUN:] with unapproved script: {script[:60]}")
+            return ""
+        run_applescript(script)
         return ""
 
     def _type(m):
@@ -501,6 +519,9 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        if not re.match(r'^spotify:[a-z]+:[A-Za-z0-9]+$', uri):
+            print(f"  [security] blocked invalid Spotify URI: {uri[:60]}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
