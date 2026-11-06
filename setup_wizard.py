@@ -178,6 +178,7 @@ CRITICAL: Every action MUST include the tag. Without the tag, nothing happens.
 Apps & Web:
 [OPEN: AppName]                   — open any app
 [URL: https://...]                — open a website
+Note: [RUN: applescript] is intentionally excluded — arbitrary AppleScript execution requires explicit developer approval.
 
 Notes:
 [NOTE: text content]              — create and save a note in Notes app
