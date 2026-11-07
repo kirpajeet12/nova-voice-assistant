@@ -36,6 +36,7 @@ def _save_history():
     data = {"updated": datetime.now().isoformat(), "messages": history}
     with open(HISTORY_FILE, "w") as f:
         json.dump(data, f, indent=2)
+    os.chmod(HISTORY_FILE, 0o600)  # conversation history may contain sensitive content
 
 
 def load_history():
