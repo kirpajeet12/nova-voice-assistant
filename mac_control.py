@@ -57,10 +57,16 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_ALLOWED_URL_SCHEMES = ("http://", "https://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    # Block non-http(s) schemes that may have slipped through (e.g. file://, javascript:)
+    if not url.startswith(_ALLOWED_URL_SCHEMES):
+        print(f"  [mac] blocked dangerous URL scheme: {url}")
+        return {"ok": False, "error": "blocked URL scheme"}
     return run_applescript(f'open location "{_s(url)}"')
 
 
@@ -398,7 +404,8 @@ def parse_and_execute(text: str) -> str:
         return ""
 
     def _run(m):
-        run_applescript(m.group(1).strip())
+        # [RUN:] executes arbitrary AppleScript — blocked to prevent code injection
+        print(f"  [mac] [RUN:] tag blocked for security")
         return ""
 
     def _type(m):
@@ -497,14 +504,18 @@ def parse_and_execute(text: str) -> str:
     text = re.sub(r'\[URL:\s*([^\]]+)\]',          _url,           text)
     text = re.sub(r'\[VOLUME:\s*([^\]]+)\]',       _volume,        text)
     text = re.sub(r'\[NOTIFY:\s*([^\]]+)\]',       _notify,        text)
-    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)
+    text = re.sub(r'\[RUN:\s*([^\]]+)\]',          _run,           text)  # blocked — handler is a no-op
     text = re.sub(r'\[TYPE:\s*([^\]]+)\]',         _type,          text)
     def _spotify_uri(m):
         uri = m.group(1).strip()
+        # Only allow spotify: URIs to prevent AppleScript injection via open location
+        if not uri.startswith("spotify:"):
+            print(f"  [mac] blocked non-spotify URI: {uri}")
+            return ""
         run_applescript(f'''
 tell application "Spotify" to activate
 delay 1
-open location "{uri}"
+open location "{_s(uri)}"
 ''')
         return ""
 
