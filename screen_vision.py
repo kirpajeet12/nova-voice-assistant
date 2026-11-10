@@ -25,7 +25,8 @@ pyautogui.PAUSE = 0.3
 
 def take_screenshot() -> str:
     """Take screenshot and return path to PNG file."""
-    path = tempfile.mktemp(suffix=".png")
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        path = f.name
     subprocess.run(["screencapture", "-x", path])
     return path
 
@@ -104,10 +105,15 @@ If you cannot find what's needed, set action to "none" and explain in descriptio
     print(f"  [vision] {description}")
     print(f"  [vision] action: {action} → {result}")
 
+    screen_w, screen_h = pyautogui.size()
     if action == "click":
-        pyautogui.click(data["x"], data["y"])
+        x = max(0, min(int(data["x"]), screen_w - 1))
+        y = max(0, min(int(data["y"]), screen_h - 1))
+        pyautogui.click(x, y)
     elif action == "double_click":
-        pyautogui.doubleClick(data["x"], data["y"])
+        x = max(0, min(int(data["x"]), screen_w - 1))
+        y = max(0, min(int(data["y"]), screen_h - 1))
+        pyautogui.doubleClick(x, y)
     elif action == "type":
         pyautogui.typewrite(data.get("text", ""), interval=0.05)
     elif action == "scroll":

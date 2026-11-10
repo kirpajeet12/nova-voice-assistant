@@ -23,7 +23,11 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return (text
+            .replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\n', '\\n')
+            .replace('\r', ''))
 
 
 def run_applescript(script: str) -> dict:
@@ -57,9 +61,16 @@ def quit_app(name: str):
 
 # ── BROWSER ──────────────────────────────
 
+_BLOCKED_PROTOCOLS = ("javascript:", "data:", "vbscript:", "file://")
+
 def open_url(url: str):
     print(f"  [mac] opening url: {url}")
-    if not url.startswith("http"):
+    url_stripped = url.strip().lower()
+    for proto in _BLOCKED_PROTOCOLS:
+        if url_stripped.startswith(proto):
+            print(f"  [mac] blocked dangerous protocol in URL: {url[:60]}")
+            return {"ok": False, "error": "blocked protocol"}
+    if not url_stripped.startswith("http"):
         url = "https://" + url
     return run_applescript(f'open location "{_s(url)}"')
 
