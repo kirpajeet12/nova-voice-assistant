@@ -51,6 +51,10 @@ def _load_contacts() -> dict:
     return {}
 
 def _save_contact(name: str, phone: str):
+    # Only allow digits, +, spaces, dashes, parens in phone numbers
+    if not re.match(r'^[+\d\s\-\(\)]+$', phone):
+        print(f"  [contacts] invalid phone format for {name}, skipping save")
+        return
     contacts = _load_contacts()
     contacts[name.lower()] = phone
     with open(CONTACTS_FILE, "w") as f:
@@ -117,8 +121,10 @@ def send_whatsapp(contact: str, message: str):
         return f"NEED_PHONE:{contact}"   # signal to main that we need the phone number
 
     # URL scheme — opens WhatsApp directly to the chat with message pre-filled
-    encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
-    url = f"whatsapp://send?phone={phone}&text={encoded_msg}"
+    from urllib.parse import quote
+    encoded_msg = quote(message, safe='')
+    encoded_phone = quote(phone, safe='+')
+    url = f"whatsapp://send?phone={encoded_phone}&text={encoded_msg}"
 
     script = f'''
 tell application "WhatsApp" to activate

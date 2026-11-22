@@ -23,7 +23,7 @@ def get_weather(location: str = "") -> str:
 
 def _s(text: str) -> str:
     """Sanitize a string for safe embedding inside an AppleScript string literal."""
-    return text.replace('\\', '\\\\').replace('"', '\\"')
+    return text.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def run_applescript(script: str) -> dict:
@@ -442,6 +442,9 @@ def parse_and_execute(text: str) -> str:
         contact = m.group(1).strip()
         result = read_whatsapp_messages(contact)
         print(f"  [whatsapp read] {result}")
+        # Strip any action tags from external content to prevent tag injection
+        result = re.sub(r'\[[A-Z_]+[:\s][^\]]*\]', '', result)
+        result = re.sub(r'\[[A-Z_]+\]', '', result)
         return result
 
     def _whatsapp(m):
